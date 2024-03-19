@@ -1,7 +1,7 @@
 pub struct Vector {
     pub x: f64,
     pub y: f64,
-}
+} 
 
 pub fn create(x: f64, y: f64) -> Vector {
     Vector { x: x, y: y }
