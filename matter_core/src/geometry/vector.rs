@@ -1,10 +1,30 @@
 pub struct Vector {
     pub x: f64,
     pub y: f64,
-} 
+    pub index: usize,
+    pub is_internal: bool,
+}
+
+pub fn create_internal_vertex(x: f64, y: f64, index: usize) -> Vector {
+    Vector {
+        x: x,
+        y: y,
+        index: 0,
+        is_internal: true,
+    }
+}
+
+pub fn create_vertex(x: f64, y: f64, index: usize) -> Vector {
+    Vector {
+        x: x,
+        y: y,
+        index: 0,
+        is_internal: false,
+    }
+}
 
 pub fn create(x: f64, y: f64) -> Vector {
-    Vector { x: x, y: y }
+    create_vertex(x, y, 0)
 }
 
 pub fn magnitude(vector: &Vector) -> f64 {

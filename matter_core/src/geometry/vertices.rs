@@ -136,14 +136,27 @@ pub fn translate(vertices: &mut Vec<Vertex>, vector: &Vector, scalar: f64) {
 }
 
 pub fn contains(vertices: &Vec<Vertex>, point: &Vector) -> bool {
-    let mut previous_vertex = &vertices[vertices.len() -1];
+    let mut previous_vertex = &vertices[vertices.len() - 1];
     for vertex in vertices {
-        if (point.x - previous_vertex.x) * (vertex.y - previous_vertex.y) + (point.y - previous_vertex.y) * (previous_vertex.x - vertex.x) > 0.0 {
-            return false
+        if (point.x - previous_vertex.x) * (vertex.y - previous_vertex.y)
+            + (point.y - previous_vertex.y) * (previous_vertex.x - vertex.x)
+            > 0.0
+        {
+            return false;
         }
         previous_vertex = vertex
     }
     true
+}
+
+// pub fn scala_centre (vertices: &mut Vec<Vertex>, scale_x: f64, scale_y: f64) {
+//     centre(vertices)
+// }
+
+pub fn scale(vertices: &mut Vec<Vertex>, scale_x: f64, scale_y: f64, point: &Vector) {
+    if scale_x == 1.0 && scale_y == 1.0 {
+        return;
+    }
 }
 
 #[cfg(test)]
@@ -154,45 +167,24 @@ mod tests {
 
     use super::*;
 
-    test("scale function", () => {
-        const pointA = Vector.create(0, 0);
-        const pointB = Vector.create(40.1, 0);
-        const pointC = Vector.create(40.1, 40.1);
-        const pointD = Vector.create(0, 40.1);
-        const points = [ pointA, pointB, pointC, pointD ]
-        const body = Body.create()
-        const vertices = Vertices.create(points, body)
-        let pointS = Vector.create(0, 0)
-        const scaleX = 5
-        const scaleY = 8
-        let scaled = Vertices.scale(vertices,scaleX,scaleY,pointS)
-    
-        expect(scaled[0].x).toEqual(0)
-        expect(scaled[0].y).toEqual(0)
-        expect(scaled[1].x).toEqual(200.5)
-        expect(scaled[1].y).toEqual(0)
-        expect(scaled[2].x).toEqual(200.5)
-        expect(scaled[2].y).toEqual(320.8)
-        expect(scaled[3].x).toEqual(0)
-        expect(scaled[3].y).toEqual(320.8)
-      })
+    #[test]
+    fn scale_should_mutate_the_vertices_to_valid_values() {
+        // Arrange
+        // let points = test_square();
+        // let mut vertices = create(points);
+        // let scale_x = 5.0_f64;
+        // let scale_y = 8.0_f64;
+        // let point = vector::create(0.0, 0.0);
 
-      #[test]
-      fn scale_should_mutate_the_vertices_to_valid_values() {
-          // Arrange
-          let points = test_square();
-          let vertices = create(points);
-          let scale_x= 5.0_f64;
+        // // Act
+        // scale(&mut vertices, scale_x, scale_y, &point);
 
-  
-          let vector = vector::create(-1.0, 0.0);
-  
-          // Act
-          let result = contains(&vertices, &vector);
-  
-          // Assert
-          assert_eq!(result, false);
-      }
+        // // Assert
+        // assert_vertex(&vertices[0], 0.0, 0.0);
+        // assert_vertex(&vertices[0], 200.5, 0.0);
+        // assert_vertex(&vertices[0], 200.5, 320.8);
+        // assert_vertex(&vertices[0], 0.0, 320.8);
+    }
 
     #[test]
     fn contains_should_respond_false_when_the_vertex_is_outside() {
@@ -224,7 +216,7 @@ mod tests {
         assert_eq!(result, true);
     }
 
-      #[test]
+    #[test]
     fn contains_should_respond_true_when_the_vertex_is_in_the_middle() {
         // Arrange
         let points = test_square();
