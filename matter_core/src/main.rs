@@ -1,3 +1,4 @@
+pub mod core;
 mod geometry;
 use crate::geometry::vector;
 

@@ -1,3 +1,4 @@
+#[derive(Clone)]
 pub struct Vector {
     pub x: f64,
     pub y: f64,
@@ -5,20 +6,20 @@ pub struct Vector {
     pub is_internal: bool,
 }
 
-pub fn create_internal_vertex(x: f64, y: f64, index: usize) -> Vector {
-    Vector {
-        x: x,
-        y: y,
-        index: 0,
-        is_internal: true,
-    }
-}
+// pub fn create_internal_vertex(x: f64, y: f64, index: usize) -> Vector {
+//     Vector {
+//         x: x,
+//         y: y,
+//         index: index,
+//         is_internal: true,
+//     }
+// }
 
 pub fn create_vertex(x: f64, y: f64, index: usize) -> Vector {
     Vector {
         x: x,
         y: y,
-        index: 0,
+        index: index,
         is_internal: false,
     }
 }
