@@ -1,3 +1,4 @@
+#[derive(Clone)]
 pub struct Vector {
     pub x: f64,
     pub y: f64,
@@ -13,15 +14,6 @@ pub struct Vector {
 //         is_internal: true,
 //     }
 // }
-
-pub fn clone(vector: &Vector) -> Vector {
-    Vector {
-        x: vector.x,
-        y: vector.y,
-        index: vector.index,
-        is_internal: vector.is_internal,
-    }
-}
 
 pub fn create_vertex(x: f64, y: f64, index: usize) -> Vector {
     Vector {

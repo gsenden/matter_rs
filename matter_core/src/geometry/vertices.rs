@@ -190,7 +190,7 @@ pub fn chamfer(
         }];
 
         if current_radius == 0.0 {
-            new_vertices.push(vector::clone(vertex));
+            new_vertices.push(vertex.clone());
             continue;
         }
 
@@ -276,7 +276,7 @@ pub fn hull(vertices: &mut Vec<Vector>) {
         {
             lower.pop();
         }
-        lower.push(vector::clone(vertex));
+        lower.push(vertex.clone());
         index += 1;
     }
 
@@ -291,7 +291,7 @@ pub fn hull(vertices: &mut Vec<Vector>) {
         {
             upper.pop();
         }
-        upper.push(vector::clone(vertex));
+        upper.push(vertex.clone());
 
         index -= 1;
     }
@@ -304,6 +304,40 @@ pub fn hull(vertices: &mut Vec<Vector>) {
     vertices.append(&mut upper)
 }
 
+pub fn is_convex(vertices: &Vec<Vector>) -> Option<bool> {
+    let vertices_len = vertices.len();
+
+    if vertices_len < 3 {
+        return None;
+    }
+
+    let mut flag = 0;
+    let mut index = 0_usize;
+    while index < vertices_len {
+        let j = (index + 1) % vertices_len;
+        let k = (index + 2) % vertices_len;
+        let mut z = (vertices[j].x - vertices[index].x) * (vertices[k].y - vertices[j].y);
+        z -= (vertices[j].y - vertices[index].y) * (vertices[k].x - vertices[j].x);
+        index += 1;
+
+        if z < 0.0 {
+            flag = flag | 1;
+        } else if z > 0.0 {
+            flag = flag | 2;
+        }
+
+        if flag == 3 {
+            return Some(false);
+        }
+    }
+
+    if flag != 0 {
+        Some(true)
+    } else {
+        None
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use float_cmp::ApproxEq;
@@ -311,6 +345,63 @@ mod tests {
     use crate::geometry::vector;
 
     use super::*;
+
+    #[test]
+    fn is_convex_should_return_none_for_vertices_with_z_0() {
+        //Arrange
+        let point_a = vector::create(0.0, 0.0);
+        let point_b = vector::create(0.0, 0.0);
+        let point_c = vector::create(0.0, 0.0);
+        let points = vec![point_a, point_b, point_c];
+        let vertices = create(points);
+
+        // Act
+        let result = is_convex(&vertices);
+
+        // Assert
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn is_convex_should_return_none_for_vertices_with_less_then_3_vectors() {
+        //Arrange
+        let point_a = vector::create(0.0, 1.0);
+        let point_b = vector::create(1.0, 1.0);
+        let points = vec![point_a, point_b];
+        let vertices = create(points);
+
+        // Act
+        let result = is_convex(&vertices);
+
+        // Assert
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn is_convex_should_return_false_for_non_convex_vertices() {
+        //Arrange
+        let points = test_shape_non_convex();
+        let vertices = create(points);
+
+        // Act
+        let result = is_convex(&vertices);
+
+        // Assert
+        assert_eq!(result, Some(false));
+    }
+
+    #[test]
+    fn is_convex_should_return_true_for_convex_vertices() {
+        //Arrange
+        let points = test_shape_convex();
+        let vertices = create(points);
+
+        // Act
+        let result = is_convex(&vertices);
+
+        // Assert
+        assert_eq!(result, Some(true));
+    }
 
     #[test]
     fn hull_should_mutate_the_vertices_to_a_valid_vec() {
@@ -667,5 +758,27 @@ mod tests {
         let point_c = vector::create(-40.1, -40.1);
         let point_d = vector::create(0.0, -40.1);
         vec![point_a, point_b, point_c, point_d]
+    }
+
+    fn test_shape_convex() -> Vec<Vector> {
+        let point_a = vector::create(40.1, 40.1);
+        let point_b = vector::create(0.0, 40.1);
+        let point_c = vector::create(0.0, 0.0);
+        let point_d = vector::create(40.1, 0.0);
+        vec![point_a, point_b, point_c, point_d]
+    }
+
+    fn test_shape_non_convex() -> Vec<Vector> {
+        let point_a = vector::create(1.0, 1.0);
+        let point_b = vector::create(5.0, 1.0);
+        let point_c = vector::create(5.0, 3.0);
+        let point_d = vector::create(4.0, 4.0);
+        let point_e = vector::create(3.0, 3.0);
+        let point_f = vector::create(2.0, 4.0);
+        let point_g = vector::create(1.0, 3.0);
+
+        vec![
+            point_a, point_b, point_c, point_d, point_e, point_f, point_g,
+        ]
     }
 }
