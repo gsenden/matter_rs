@@ -342,7 +342,16 @@ pub fn is_convex(vertices: &Vec<Vector>) -> Option<bool> {
 mod tests {
     use float_cmp::ApproxEq;
 
-    use crate::geometry::vector;
+    use crate::{
+        geometry::vector,
+        test_utils::{
+            common_test_utils::assert_float,
+            geometry_test_utils::{
+                assert_vector, test_shape_convex, test_shape_non_convex, test_square_with_decimals,
+                test_square_with_decimals_signed,
+            },
+        },
+    };
 
     use super::*;
 
@@ -406,7 +415,7 @@ mod tests {
     #[test]
     fn hull_should_mutate_the_vertices_to_a_valid_vec() {
         //Arrange
-        let points = test_square();
+        let points = test_square_with_decimals();
         let mut vertices = create(points);
 
         // Act
@@ -445,7 +454,7 @@ mod tests {
     #[test]
     fn chamfer_should_create_valid_vertices_when_using_default_parameters() {
         //Arrange
-        let points = test_square();
+        let points = test_square_with_decimals();
         let vertices = create(points);
         let radius = None;
         let quality = None;
@@ -478,7 +487,7 @@ mod tests {
     #[test]
     fn chamfer_should_create_valid_vertices_when_not_using_default_parameters() {
         //Arrange
-        let points = test_square();
+        let points = test_square_with_decimals();
         let vertices = create(points);
         let radius = Some(vec![2.0_f64, 3.0_f64, 4.0_f64, 5.0_f64]);
         let quality = Some(-3.0_f64);
@@ -526,7 +535,7 @@ mod tests {
     #[test]
     fn scale_centre_should_mutate_the_vertices_to_valid_values() {
         //Arrange
-        let points = test_square();
+        let points = test_square_with_decimals();
         let mut vertices = create(points);
         let scale_x = 5.0_f64;
         let scale_y = 8.0_f64;
@@ -544,7 +553,7 @@ mod tests {
     #[test]
     fn scale_should_mutate_the_vertices_to_valid_values() {
         //Arrange
-        let points = test_square();
+        let points = test_square_with_decimals();
         let mut vertices = create(points);
         let scale_x = 5.0_f64;
         let scale_y = 8.0_f64;
@@ -563,7 +572,7 @@ mod tests {
     #[test]
     fn contains_should_respond_false_when_the_vector_is_outside() {
         // Arrange
-        let points = test_square();
+        let points = test_square_with_decimals();
         let vertices = create(points);
 
         let vector = vector::create(-1.0, 0.0);
@@ -578,7 +587,7 @@ mod tests {
     #[test]
     fn contains_should_respond_true_when_the_vector_is_on_the_edge() {
         // Arrange
-        let points = test_square();
+        let points = test_square_with_decimals();
         let vertices = create(points);
 
         let vector = vector::create(0.0, 0.0);
@@ -593,7 +602,7 @@ mod tests {
     #[test]
     fn contains_should_respond_true_when_the_vector_is_in_the_middle() {
         // Arrange
-        let points = test_square();
+        let points = test_square_with_decimals();
         let vertices = create(points);
 
         let vector = vector::create(20.5, 20.5);
@@ -608,7 +617,7 @@ mod tests {
     #[test]
     fn translate_should_mutate_vertices_in_a_valid_way() {
         // Arrange
-        let points = test_square();
+        let points = test_square_with_decimals();
         let mut vertices = create(points);
 
         let vector = vector::create(5.0, 6.0);
@@ -627,7 +636,7 @@ mod tests {
     #[test]
     fn innertia_should_calculate_a_valid_value() {
         // Arrange
-        let points = test_square();
+        let points = test_square_with_decimals();
         let mass = 10.0;
 
         // Act
@@ -640,7 +649,7 @@ mod tests {
     #[test]
     fn mean_should_return_a_valid_vector() {
         // Arrange
-        let points = test_square();
+        let points = test_square_with_decimals();
 
         // Act
         let result: Vector = mean(&points);
@@ -652,7 +661,7 @@ mod tests {
     #[test]
     fn centre_should_return_a_valid_vector() {
         // Arrange
-        let points = test_square();
+        let points = test_square_with_decimals();
 
         // Act
         let result: Vector = centre(&points);
@@ -664,7 +673,7 @@ mod tests {
     #[test]
     fn area_should_calculate_a_valid_value_with_signed_false() {
         // Arrange
-        let points = test_square();
+        let points = test_square_with_decimals();
         //let vertices = create(points);
         let signed = false;
 
@@ -672,24 +681,20 @@ mod tests {
         let result: f64 = area(&points, signed);
 
         // Assert
-        let expected = 1608.0100000000002_f64;
-
-        assert!(result.approx_eq(expected, (0.0, 2)));
+        assert_float(result, 1608.0100000000002_f64);
     }
 
     #[test]
     fn area_should_calculate_a_valid_value_with_signed_true() {
         // Arrange
-        let points = test_square_signed();
+        let points = test_square_with_decimals_signed();
         let signed = true;
 
         // Act
         let result: f64 = area(&points, signed);
 
         // Assert
-        let expected = 1608.0100000000002_f64;
-
-        assert!(result.approx_eq(expected, (0.0, 2)));
+        assert_float(result, 1608.0100000000002_f64);
     }
 
     #[test]
@@ -701,13 +706,11 @@ mod tests {
         let result = from_path(path).unwrap();
 
         // Assert
-        let expected_x = 3.0_f64;
-        let expected_len = 3_usize;
-        let expected_index = 2_usize;
+        assert_vector(&result[0], 1.0, 2.0);
+        assert_vector(&result[1], 3.0, 4.0);
+        assert_vector(&result[2], 5.0, 6.0);
 
-        assert!(result[1].x.approx_eq(expected_x, (0.0, 2)));
-        assert_eq!(result.len(), expected_len);
-        assert_eq!(result[2].index, expected_index);
+        assert_eq!(result.len(), 3_usize);
     }
 
     #[test]
@@ -722,63 +725,9 @@ mod tests {
         let result = create(vector_list);
 
         // Assert
-        let expected_x = 3.0_f64;
-        let expected_len = 3_usize;
-        let expected_index = 2_usize;
-        assert!(result[1].x.approx_eq(expected_x, (0.0, 2)));
-        assert_eq!(result.len(), expected_len);
-        assert_eq!(result[2].index, expected_index);
-    }
-
-    fn assert_vector(result: &Vector, expected_x: f64, expected_y: f64) {
-        assert_float(result.x, expected_x);
-        assert_float(result.y, expected_y);
-    }
-
-    fn assert_float(result: f64, expected: f64) {
-        assert!(
-            result.approx_eq(expected, (0.0, 2)),
-            "result: {} did not match expected: {}",
-            result,
-            expected
-        );
-    }
-
-    fn test_square() -> Vec<Vector> {
-        let point_a = vector::create(0.0, 0.0);
-        let point_b = vector::create(40.1, 0.0);
-        let point_c = vector::create(40.1, 40.1);
-        let point_d = vector::create(0.0, 40.1);
-        vec![point_a, point_b, point_c, point_d]
-    }
-
-    fn test_square_signed() -> Vec<Vector> {
-        let point_a = vector::create(0.0, 0.0);
-        let point_b = vector::create(-40.1, 0.0);
-        let point_c = vector::create(-40.1, -40.1);
-        let point_d = vector::create(0.0, -40.1);
-        vec![point_a, point_b, point_c, point_d]
-    }
-
-    fn test_shape_convex() -> Vec<Vector> {
-        let point_a = vector::create(40.1, 40.1);
-        let point_b = vector::create(0.0, 40.1);
-        let point_c = vector::create(0.0, 0.0);
-        let point_d = vector::create(40.1, 0.0);
-        vec![point_a, point_b, point_c, point_d]
-    }
-
-    fn test_shape_non_convex() -> Vec<Vector> {
-        let point_a = vector::create(1.0, 1.0);
-        let point_b = vector::create(5.0, 1.0);
-        let point_c = vector::create(5.0, 3.0);
-        let point_d = vector::create(4.0, 4.0);
-        let point_e = vector::create(3.0, 3.0);
-        let point_f = vector::create(2.0, 4.0);
-        let point_g = vector::create(1.0, 3.0);
-
-        vec![
-            point_a, point_b, point_c, point_d, point_e, point_f, point_g,
-        ]
+        assert_vector(&result[0], 1.0, 2.0);
+        assert_vector(&result[1], 3.0, 4.0);
+        assert_vector(&result[2], 5.0, 6.0);
+        assert_eq!(result.len(), 3);
     }
 }

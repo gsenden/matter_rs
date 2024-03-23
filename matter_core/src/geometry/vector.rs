@@ -104,8 +104,10 @@ pub fn angle(vector_a: &Vector, vector_b: &Vector) -> f64 {
 
 #[cfg(test)]
 mod tests {
-    use crate::geometry::vector::{self, Vector};
-    use float_cmp::ApproxEq;
+    use crate::{
+        geometry::vector::{self, Vector},
+        test_utils::{common_test_utils::assert_float, geometry_test_utils::assert_vector},
+    };
 
     #[test]
     fn angle_should_calculate_a_valid_result() {
@@ -117,8 +119,7 @@ mod tests {
         let result = vector::angle(&vector_a, &vector_b);
 
         // Assert
-        let expected = 0.5880026035475675_f64;
-        assert!(result.approx_eq(expected, (0.0, 2)));
+        assert_float(result, 0.5880026035475675_f64);
     }
 
     #[test]
@@ -130,10 +131,7 @@ mod tests {
         let result: Vector = vector::neg(&vector);
 
         // Assert
-        let expected_x = -2_f64;
-        let expected_y = -4_f64;
-        assert!(result.x.approx_eq(expected_x, (0.0, 2)));
-        assert!(result.y.approx_eq(expected_y, (0.0, 2)));
+        assert_vector(&result, -2_f64, -4_f64);
     }
 
     #[test]
@@ -146,10 +144,7 @@ mod tests {
         let result = vector::perp(&vector, negate);
 
         // Assert
-        let expected_x = -4_f64;
-        let expected_y = 2_f64;
-        assert!(result.x.approx_eq(expected_x, (0.0, 2)));
-        assert!(result.y.approx_eq(expected_y, (0.0, 2)));
+        assert_vector(&result, -4_f64, 2_f64);
     }
 
     #[test]
@@ -162,10 +157,7 @@ mod tests {
         let result = vector::perp(&vector, negate);
 
         // Assert
-        let expected_x = 4_f64;
-        let expected_y = -2_f64;
-        assert!(result.x.approx_eq(expected_x, (0.0, 2)));
-        assert!(result.y.approx_eq(expected_y, (0.0, 2)));
+        assert_vector(&result, 4_f64, -2_f64);
     }
 
     #[test]
@@ -178,10 +170,7 @@ mod tests {
         let result = vector::div(&vector, scalar);
 
         // Assert
-        let expected_x = 1_f64;
-        let expected_y = 2_f64;
-        assert!(result.x.approx_eq(expected_x, (0.0, 2)));
-        assert!(result.y.approx_eq(expected_y, (0.0, 2)));
+        assert_vector(&result, 1_f64, 2_f64);
     }
 
     #[test]
@@ -194,10 +183,7 @@ mod tests {
         let result = vector::mult(&vector, scalar);
 
         // Assert
-        let expected_x = 4_f64;
-        let expected_y = 6_f64;
-        assert!(result.x.approx_eq(expected_x, (0.0, 2)));
-        assert!(result.y.approx_eq(expected_y, (0.0, 2)));
+        assert_vector(&result, 4_f64, 6_f64);
     }
 
     #[test]
@@ -210,10 +196,7 @@ mod tests {
         let result = vector::sub(&vector_a, &vector_b);
 
         // Assert
-        let expected_x = 2_f64;
-        let expected_y = 2_f64;
-        assert!(result.x.approx_eq(expected_x, (0.0, 2)));
-        assert!(result.y.approx_eq(expected_y, (0.0, 2)));
+        assert_vector(&result, 2_f64, 2_f64);
     }
 
     #[test]
@@ -226,10 +209,7 @@ mod tests {
         let result = vector::add(&vector_a, &vector_b);
 
         // Assert
-        let expected_x = 6_f64;
-        let expected_y = 8_f64;
-        assert!(result.x.approx_eq(expected_x, (0.0, 2)));
-        assert!(result.y.approx_eq(expected_y, (0.0, 2)));
+        assert_vector(&result, 6_f64, 8_f64);
     }
 
     #[test]
@@ -243,8 +223,7 @@ mod tests {
         let result = vector::cross3(&vector_a, &vector_b, &vector_c);
 
         // Assert
-        let expected = 2_f64;
-        assert!(result.approx_eq(expected, (0.0, 2)));
+        assert_float(result, 2.0);
     }
 
     #[test]
@@ -257,8 +236,7 @@ mod tests {
         let result = vector::cross(&vector_a, &vector_b);
 
         // Assert
-        let expected = -2_f64;
-        assert!(result.approx_eq(expected, (0.0, 2)));
+        assert_float(result, -2.0);
     }
 
     #[test]
@@ -271,8 +249,7 @@ mod tests {
         let result = vector::dot(&vector, &multiplier);
 
         // Assert
-        let expected = 23_f64;
-        assert!(result.approx_eq(expected, (0.0, 2)));
+        assert_float(result, 23.0);
     }
 
     #[test]
@@ -284,10 +261,7 @@ mod tests {
         let result = vector::normalise(&vector);
 
         // Assert
-        let expected_x = 0.9805806756909202_f64;
-        let expected_y = 0.19611613513818404_f64;
-        assert!(result.x.approx_eq(expected_x, (0.0, 2)));
-        assert!(result.y.approx_eq(expected_y, (0.0, 2)));
+        assert_vector(&result, 0.9805806756909202_f64, 0.19611613513818404_f64);
     }
 
     #[test]
@@ -301,10 +275,7 @@ mod tests {
         let result = vector::rotate_about(&vector, angle, &point);
 
         // Assert
-        let expected_x = -1.3291746923771393_f64;
-        let expected_y = -5.274379414605454_f64;
-        assert!(result.x.approx_eq(expected_x, (0.0, 2)));
-        assert!(result.y.approx_eq(expected_y, (0.0, 2)));
+        assert_vector(&result, -1.3291746923771393_f64, -5.274379414605454_f64);
     }
 
     #[test]
@@ -317,10 +288,7 @@ mod tests {
         let result = vector::rotate(&vector, angle);
 
         // Assert
-        let expected_x = -2.3428735118200605_f64;
-        let expected_y = -9.925267941351102_f64;
-        assert!(result.x.approx_eq(expected_x, (0.0, 2)));
-        assert!(result.y.approx_eq(expected_y, (0.0, 2)));
+        assert_vector(&result, -2.3428735118200605_f64, -9.925267941351102_f64);
     }
 
     #[test]
@@ -332,8 +300,7 @@ mod tests {
         let result = vector::magnitude_squared(&vector);
 
         // Assert
-        let expected = 104.0_f64;
-        assert!(result.approx_eq(expected, (0.0, 2)));
+        assert_float(result, 104.0_f64);
     }
 
     #[test]
@@ -345,8 +312,7 @@ mod tests {
         let result = vector::magnitude(&vector);
 
         // Assert
-        let expected = 0.0_f64;
-        assert!(result.approx_eq(expected, (0.0, 2)));
+        assert_float(result, 0.0_f64);
     }
 
     #[test]
@@ -358,7 +324,6 @@ mod tests {
         let result = vector::magnitude(&vector);
 
         // Assert
-        let expected: f64 = 5.830951894845301;
-        assert!(result.approx_eq(expected, (0.0, 2)));
+        assert_float(result, 5.830951894845301);
     }
 }
