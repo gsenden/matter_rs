@@ -190,7 +190,7 @@ pub fn chamfer(
         }];
 
         if current_radius == 0.0 {
-            new_vertices.push(vertex.clone());
+            new_vertices.push(vector::clone(vertex));
             continue;
         }
 
@@ -276,31 +276,31 @@ pub fn hull(vertices: &mut Vec<Vector>) {
         {
             lower.pop();
         }
-        lower.push(vertex.clone());
+        lower.push(vector::clone(vertex));
         index += 1;
     }
 
     let mut upper: Vec<Vector> = Vec::new();
-    let mut index = vertices.len() - 1;
+    let mut index = (vertices.len() - 1) as i32;
 
-    while index > 0 {
-        let vertex = &vertices[index];
+    while index >= 0 {
+        let vertex = &vertices[index as usize];
 
         while upper.len() >= 2
             && vector::cross3(&upper[upper.len() - 2], &upper[upper.len() - 1], &vertex) <= 0.0
         {
             upper.pop();
         }
-        upper.push(vertex.clone());
+        upper.push(vector::clone(vertex));
 
         index -= 1;
     }
-
     upper.pop();
     lower.pop();
 
     upper.append(&mut lower);
     vertices.clear();
+
     vertices.append(&mut upper)
 }
 
