@@ -340,8 +340,6 @@ pub fn is_convex(vertices: &Vec<Vector>) -> Option<bool> {
 
 #[cfg(test)]
 mod tests {
-    use float_cmp::ApproxEq;
-
     use crate::{
         geometry::vector,
         test_utils::{
