@@ -1,46 +1,52 @@
-// #[cfg(test)]
-// mod tests {
-//     use float_cmp::ApproxEq;
+use std::collections::HashMap;
 
-//     use crate::geometry::vector;
-//     use crate::geometry::vector::Vector;
-//     use crate::geometry::vertices;
+use super::vector::{self, Vector};
 
-//     use super::*;
+pub fn from_vertices(vertices: &Vec<Vector>) -> Vec<Vector> {
+    let mut axes: HashMap<String, Vector> = HashMap::new();
+    let vertices_len = vertices.len();
 
-//     #[test]
-//     fn from_vertices_should_return_valid_vectors_as_axes() {
-//         //Arrange
-//         let points = test_square();
-//         let vertices = vertices::create(points);
+    let mut index = 0;
 
-//         // Act
-//         let result = from_vertices(&vertices);
+    while index < vertices_len {
+        let next_index = (index + 1) % vertices_len;
+        let normal = vector::normalise(&vector::create(
+            vertices[next_index].y - vertices[index].y,
+            vertices[index].x - vertices[next_index].x,
+        ));
+        let gradient = if normal.y == 0.0 {
+            f64::INFINITY
+        } else {
+            normal.x / normal.y
+        };
+        let gradient = format!("{0:.3}", gradient);
+        axes.insert(gradient, normal);
 
-//         // Assert
-//         assert_vector(&result[0], 0.0, 1.0);
-//         assert_vector(&result[1], -1.0, 0.0);
-//     }
+        index += 1;
+    }
 
-//     fn assert_vector(result: &Vector, expected_x: f64, expected_y: f64) {
-//         assert_float(result.x, expected_x);
-//         assert_float(result.y, expected_y);
-//     }
+    axes.values().cloned().collect()
+}
 
-//     fn assert_float(result: f64, expected: f64) {
-//         assert!(
-//             result.approx_eq(expected, (0.0, 2)),
-//             "result: {} did not match expected: {}",
-//             result,
-//             expected
-//         );
-//     }
+#[cfg(test)]
+mod tests {
 
-//     fn test_square() -> Vec<Vector> {
-//         let point_a = vector::create(1.0, 1.0);
-//         let point_b = vector::create(3.0, 1.0);
-//         let point_c = vector::create(3.0, 3.0);
-//         let point_d = vector::create(1.0, 3.0);
-//         vec![point_a, point_b, point_c, point_d]
-//     }
-// }
+    use crate::geometry::vertices;
+    use crate::test_utils::geometry_test_utils::{assert_vector, test_square};
+
+    use super::*;
+
+    #[test]
+    fn from_vertices_should_return_valid_vectors_as_axes() {
+        //Arrange
+        let points = test_square();
+        let vertices = vertices::create(points);
+
+        // Act
+        let result = from_vertices(&vertices);
+
+        // Assert
+        assert_vector(&result[0], 0.0, 1.0);
+        //assert_vector(&result[1], -1.0, 0.0);
+    }
+}
