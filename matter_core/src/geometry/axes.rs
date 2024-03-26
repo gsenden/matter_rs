@@ -1,6 +1,3 @@
-use itertools::Itertools;
-use std::collections::HashMap;
-
 use crate::core::common::OrderedHashMap;
 
 use super::vector::{self, Vector};
