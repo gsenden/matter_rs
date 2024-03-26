@@ -1,3 +1,7 @@
+pub enum ShapeType {
+    Body
+}
+
 pub struct OrderedHashMap<T> {
     pub keys: Vec<String>,
     pub values: Vec<T>,
