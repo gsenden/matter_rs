@@ -1,5 +1,7 @@
+use uuid::Uuid;
+
 pub enum ShapeType {
-    Body
+    Body,
 }
 
 pub struct OrderedHashMap<T> {
@@ -42,4 +44,8 @@ pub fn clamp(value: f64, min: f64, max: f64) -> f64 {
     } else {
         value
     }
+}
+
+pub fn next_id() -> uuid::Uuid {
+    Uuid::new_v4()
 }
