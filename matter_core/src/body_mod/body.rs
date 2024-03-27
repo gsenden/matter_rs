@@ -1,63 +1,101 @@
 use std::fmt::LowerHex;
 
 use uuid::Uuid;
-use crate::{core::common::ShapeType, geometry::vector::Vector};
+use crate::{core::common::ShapeType, geometry::{bounds::Bounds, vector::Vector}};
 
 pub struct Position {
-    pub x: f64,
-    pub y: f64
+    x: f64,
+    y: f64
 }
 
 pub struct Force {
-    pub x: f64,
-    pub y: f64
+    x: f64,
+    y: f64
 }
 
 pub struct ConstraintImpulse {
-    pub x: f64,
-    pub y: f64,
-    pub angle: f64
+    x: f64,
+    y: f64,
+    angle: f64
 }
 
 pub struct Velocity {
-    pub x: f64,
-    pub y: f64
+    x: f64,
+    y: f64
 }
 
 pub struct CollisionFilter {
-    pub category: LowerHex
+    category: u16,
+    mask: u32,
+    group: u16
 }
 
+pub struct Sprite {
+    x_scale: f64,
+    y_scale: f64,
+    x_offset: f64,
+    y_offset: f64
+}
+
+pub struct Render {
+    visible: bool,
+    opacity: f64,
+    //stroke_style: Option<?>,
+    //fill_style: Option<?>,
+    //line_width: Option<?>,
+    sprite: Sprite
+}
 
 pub struct Body {
-    pub id: Uuid,
-    pub shape_type: ShapeType,
-    //parts
-    //plugin
-    pub angle: f64,
-    pub vertices: Vec<Vector>,
-    pub position: Position,
-    pub force: Force,
-    pub torque: f64,
-    pub position_impulse: Position,
-    pub constraint_impulse: ConstraintImpulse,
-    pub total_contacts: u32,
-    pub speed: f64,
-    pub angular_speed: f64,
-    pub velocity: Velocity,
-    pub angular_velocity: f64,
-    pub is_sensor: bool,
-    pub is_static: bool,
-    pub is_sleeping: bool,
-    pub motion: f64,
-    pub sleep_threshold: u32,
-    pub density: f64,
-    pub resitution: f64,
-    pub friction: f64,
-    pub friction_static: f64,
-    pub friction_air: f64,
+    id: Uuid,
+    shape_type: ShapeType,
+    //parts: Option<?>,
+    //plugin: Option<?>,
+    angle: f64,
+    vertices: Vec<Vector>,
+    position: Position,
+    force: Force,
+    torque: f64,
+    position_impulse: Position,
+    constraint_impulse: ConstraintImpulse,
+    total_contacts: u32,
+    speed: f64,
+    angular_speed: f64,
+    velocity: Velocity,
+    angular_velocity: f64,
+    is_sensor: bool,
+    is_static: bool,
+    is_sleeping: bool,
+    motion: f64,
+    sleep_threshold: u32,
+    density: f64,
+    resitution: f64,
+    friction: f64,
+    friction_static: f64,
+    friction_air: f64,
+    collision_filter: CollisionFilter,
+    slop: f64,
+    time_scale: u16,
+    render: Render,
+    //events: Option<?>,
+    bounds: Option<Bounds>,
+    chamfer: Option<Vec<Vector>>,
+    circle_radius: f64,
+    position_prev: Option<Position>,
+    angle_prev: f64,
+    parent: Option<Box<Body>>,
+    axes: Option<Vec<Vector>>,
+    area: f64,
+    mass: f64,
+    inertia: f64,
+    delta_time: f64,
+    _original: Option<Box<Body>>
+}
 
+impl Body {
+    fn create() -> Body {
 
+    }
 }
 
 
