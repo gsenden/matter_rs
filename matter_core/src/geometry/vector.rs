@@ -1,112 +1,125 @@
-#[derive(Clone)]
+use crate::core::xy::{XYGet, XYSet};
+
+#[derive(Clone, Copy)]
 pub struct Vector {
-    pub x: f64,
-    pub y: f64,
-    pub index: usize,
-    pub is_internal: bool,
+    x: f64,
+    y: f64,
 }
 
-// pub fn create_internal_vertex(x: f64, y: f64, index: usize) -> Vector {
-//     Vector {
-//         x: x,
-//         y: y,
-//         index: index,
-//         is_internal: true,
-//     }
-// }
+impl XYGet for Vector {
+    fn get_x(&self) -> f64 {
+        self.x
+    }
 
-pub fn create_vertex(x: f64, y: f64, index: usize) -> Vector {
-    Vector {
-        x: x,
-        y: y,
-        index: index,
-        is_internal: false,
+    fn get_y(&self) -> f64 {
+        self.y
+    }
+}
+
+impl XYSet for Vector {
+    fn set_x(&mut self, x: f64) {
+        self.x = x;
+    }
+
+    fn set_y(&mut self, y: f64) {
+        self.y = y;
     }
 }
 
 pub fn create(x: f64, y: f64) -> Vector {
-    create_vertex(x, y, 0)
+    Vector { x: x, y: y }
 }
 
-pub fn magnitude(vector: &Vector) -> f64 {
+pub fn magnitude(vector: &impl XYGet) -> f64 {
     magnitude_squared(vector).sqrt()
 }
 
-pub fn magnitude_squared(vector: &Vector) -> f64 {
-    vector.x.powi(2) + vector.y.powi(2)
+pub fn magnitude_squared(vector: &impl XYGet) -> f64 {
+    vector.get_x().powi(2) + vector.get_y().powi(2)
 }
 
-pub fn rotate(vector: &Vector, angle: f64) -> Vector {
+pub fn rotate(vector: &impl XYGet, angle: f64) -> Vector {
     let point = create(0.0, 0.0);
     rotate_about(vector, angle, &point)
 }
 
-pub fn rotate_about(vector: &Vector, angle: f64, point: &Vector) -> Vector {
+pub fn rotate_about(vector: &impl XYGet, angle: f64, point: &impl XYGet) -> Vector {
     let cos = angle.cos();
     let sin = angle.sin();
-    let x = point.x + ((vector.x - point.x) * cos - (vector.y - point.y) * sin);
-    let y = point.y + ((vector.x - point.x) * sin + (vector.y - point.y) * cos);
+    let x = point.get_x()
+        + ((vector.get_x() - point.get_x()) * cos - (vector.get_y() - point.get_y()) * sin);
+    let y = point.get_y()
+        + ((vector.get_x() - point.get_x()) * sin + (vector.get_y() - point.get_y()) * cos);
     create(x, y)
 }
 
-pub fn normalise(vector: &Vector) -> Vector {
+pub fn normalise(vector: &impl XYGet) -> Vector {
     let magnitude = magnitude(vector);
     if magnitude == 0.0 {
         create(0.0_f64, 0.0_f64)
     } else {
-        create(vector.x / magnitude, vector.y / magnitude)
+        create(vector.get_x() / magnitude, vector.get_y() / magnitude)
     }
 }
 
-pub fn dot(vector: &Vector, multiplier: &Vector) -> f64 {
-    vector.x * multiplier.x + vector.y * multiplier.y
+pub fn dot(vector: &impl XYGet, multiplier: &impl XYGet) -> f64 {
+    vector.get_x() * multiplier.get_x() + vector.get_y() * multiplier.get_y()
 }
 
-pub fn cross3(vector_a: &Vector, vector_b: &Vector, vector_c: &Vector) -> f64 {
-    (vector_b.x - vector_a.x) * (vector_c.y - vector_a.y)
-        - (vector_b.y - vector_a.y) * (vector_c.x - vector_a.x)
+pub fn cross3(vector_a: &impl XYGet, vector_b: &impl XYGet, vector_c: &impl XYGet) -> f64 {
+    (vector_b.get_x() - vector_a.get_x()) * (vector_c.get_y() - vector_a.get_y())
+        - (vector_b.get_y() - vector_a.get_y()) * (vector_c.get_x() - vector_a.get_x())
 }
 
-pub fn cross(vector_a: &Vector, vector_b: &Vector) -> f64 {
-    (vector_a.x * vector_b.y) - (vector_a.y * vector_b.x)
+pub fn cross(vector_a: &impl XYGet, vector_b: &impl XYGet) -> f64 {
+    (vector_a.get_x() * vector_b.get_y()) - (vector_a.get_y() * vector_b.get_x())
 }
 
-pub fn add(vector: &Vector, vector_b: &Vector) -> Vector {
-    create(vector.x + vector_b.x, vector.y + vector_b.y)
+pub fn add(vector: &impl XYGet, vector_b: &impl XYGet) -> Vector {
+    create(
+        vector.get_x() + vector_b.get_x(),
+        vector.get_y() + vector_b.get_y(),
+    )
 }
 
-pub fn sub(vector_a: &Vector, vector_b: &Vector) -> Vector {
-    create(vector_a.x - vector_b.x, vector_a.y - vector_b.y)
+pub fn sub(vector_a: &impl XYGet, vector_b: &impl XYGet) -> Vector {
+    create(
+        vector_a.get_x() - vector_b.get_x(),
+        vector_a.get_y() - vector_b.get_y(),
+    )
 }
 
-pub fn mult(vector: &Vector, scalar: f64) -> Vector {
-    create(vector.x * scalar, vector.y * scalar)
+pub fn mult(vector: &impl XYGet, scalar: f64) -> Vector {
+    create(vector.get_x() * scalar, vector.get_y() * scalar)
 }
 
-pub fn div(vector: &Vector, scalar: f64) -> Vector {
-    create(vector.x / scalar, vector.y / scalar)
+pub fn div(vector: &impl XYGet, scalar: f64) -> Vector {
+    create(vector.get_x() / scalar, vector.get_y() / scalar)
 }
 
-pub fn perp(vector: &Vector, negate: bool) -> Vector {
+pub fn perp(vector: &impl XYGet, negate: bool) -> Vector {
     let negate_factor = if negate { -1.0 } else { 1.0 };
-    let x = negate_factor * (vector.y * -1.0);
-    let y = negate_factor * vector.x;
+    let x = negate_factor * (vector.get_y() * -1.0);
+    let y = negate_factor * vector.get_x();
     create(x, y)
 }
 
-pub fn neg(vector: &Vector) -> Vector {
+pub fn neg(vector: &impl XYGet) -> Vector {
     mult(vector, -1.0)
 }
 
-pub fn angle(vector_a: &Vector, vector_b: &Vector) -> f64 {
-    f64::atan2(vector_b.y - vector_a.y, vector_b.x - vector_a.x)
+pub fn angle(vector_a: &impl XYGet, vector_b: &impl XYGet) -> f64 {
+    f64::atan2(
+        vector_b.get_y() - vector_a.get_y(),
+        vector_b.get_x() - vector_a.get_x(),
+    )
 }
 
 #[cfg(test)]
 mod tests {
     use crate::{
         geometry::vector::{self, Vector},
-        test_utils::{common_test_utils::assert_float, geometry_test_utils::assert_vector},
+        test_utils::{common_test_utils::assert_float, geometry_test_utils::assert_xy},
     };
 
     #[test]
@@ -131,7 +144,7 @@ mod tests {
         let result: Vector = vector::neg(&vector);
 
         // Assert
-        assert_vector(&result, -2_f64, -4_f64);
+        assert_xy(&result, -2_f64, -4_f64);
     }
 
     #[test]
@@ -144,7 +157,7 @@ mod tests {
         let result = vector::perp(&vector, negate);
 
         // Assert
-        assert_vector(&result, -4_f64, 2_f64);
+        assert_xy(&result, -4_f64, 2_f64);
     }
 
     #[test]
@@ -157,7 +170,7 @@ mod tests {
         let result = vector::perp(&vector, negate);
 
         // Assert
-        assert_vector(&result, 4_f64, -2_f64);
+        assert_xy(&result, 4_f64, -2_f64);
     }
 
     #[test]
@@ -170,7 +183,7 @@ mod tests {
         let result = vector::div(&vector, scalar);
 
         // Assert
-        assert_vector(&result, 1_f64, 2_f64);
+        assert_xy(&result, 1_f64, 2_f64);
     }
 
     #[test]
@@ -183,7 +196,7 @@ mod tests {
         let result = vector::mult(&vector, scalar);
 
         // Assert
-        assert_vector(&result, 4_f64, 6_f64);
+        assert_xy(&result, 4_f64, 6_f64);
     }
 
     #[test]
@@ -196,7 +209,7 @@ mod tests {
         let result = vector::sub(&vector_a, &vector_b);
 
         // Assert
-        assert_vector(&result, 2_f64, 2_f64);
+        assert_xy(&result, 2_f64, 2_f64);
     }
 
     #[test]
@@ -209,7 +222,7 @@ mod tests {
         let result = vector::add(&vector_a, &vector_b);
 
         // Assert
-        assert_vector(&result, 6_f64, 8_f64);
+        assert_xy(&result, 6_f64, 8_f64);
     }
 
     #[test]
@@ -261,7 +274,7 @@ mod tests {
         let result = vector::normalise(&vector);
 
         // Assert
-        assert_vector(&result, 0.9805806756909202_f64, 0.19611613513818404_f64);
+        assert_xy(&result, 0.9805806756909202_f64, 0.19611613513818404_f64);
     }
 
     #[test]
@@ -275,7 +288,7 @@ mod tests {
         let result = vector::rotate_about(&vector, angle, &point);
 
         // Assert
-        assert_vector(&result, -1.3291746923771393_f64, -5.274379414605454_f64);
+        assert_xy(&result, -1.3291746923771393_f64, -5.274379414605454_f64);
     }
 
     #[test]
@@ -288,7 +301,7 @@ mod tests {
         let result = vector::rotate(&vector, angle);
 
         // Assert
-        assert_vector(&result, -2.3428735118200605_f64, -9.925267941351102_f64);
+        assert_xy(&result, -2.3428735118200605_f64, -9.925267941351102_f64);
     }
 
     #[test]

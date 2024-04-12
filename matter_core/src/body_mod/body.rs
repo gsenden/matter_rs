@@ -1,53 +1,25 @@
-use std::fmt::LowerHex;
+use std::{borrow::Borrow, cell::Ref};
 
 use crate::{
-    core::common::{self, ShapeType},
-    geometry::{bounds::Bounds, vector::Vector, vertices},
+    core::{
+        collision_filter::CollisionFilter,
+        common::{self, ShapeType},
+        constraint_impulse::ConstraintImpulse,
+        force::Force,
+        position::Position,
+        render::Render,
+        sprite::Sprite,
+        velocity::Velocity,
+    },
+    geometry::{
+        axes,
+        bounds::{self, Bounds},
+        vector::{self, Vector},
+        vertices::{self, Vertex},
+    },
 };
+use itertools::Itertools;
 use uuid::Uuid;
-
-pub struct Position {
-    x: f64,
-    y: f64,
-}
-
-pub struct Force {
-    x: f64,
-    y: f64,
-}
-
-pub struct ConstraintImpulse {
-    x: f64,
-    y: f64,
-    angle: f64,
-}
-
-pub struct Velocity {
-    x: f64,
-    y: f64,
-}
-
-pub struct CollisionFilter {
-    category: u16,
-    mask: u32,
-    group: u16,
-}
-
-pub struct Sprite {
-    x_scale: f64,
-    y_scale: f64,
-    x_offset: f64,
-    y_offset: f64,
-}
-
-pub struct Render {
-    visible: bool,
-    opacity: f64,
-    //stroke_style: Option<?>,
-    //fill_style: Option<?>,
-    //line_width: Option<?>,
-    sprite: Sprite,
-}
 
 pub struct Body {
     id: Uuid,
@@ -55,7 +27,7 @@ pub struct Body {
     //parts: Option<?>,
     //plugin: Option<?>,
     angle: f64,
-    vertices: Vec<Vector>,
+    vertices: Vec<Vertex>,
     position: Position,
     force: Force,
     torque: f64,
@@ -87,7 +59,7 @@ pub struct Body {
     position_prev: Option<Position>,
     angle_prev: f64,
     parent: Option<Box<Body>>,
-    axes: Option<Vec<Vector>>,
+    axes: Option<Vec<Vertex>>,
     area: f64,
     mass: f64,
     inverse_mass: f64,
@@ -97,72 +69,69 @@ pub struct Body {
     _original: Option<Box<Body>>,
 }
 
-pub struct BodyOptions {
-    shape_type: Option<ShapeType>,
-    //parts: Option<?>,
-    //plugin: Option<?>,
-    angle: Option<f64>,
-    vertices: Option<Vec<Vector>>,
-    position: Option<Position>,
-    force: Option<Force>,
-    torque: Option<f64>,
-    position_impulse: Option<Position>,
-    constraint_impulse: Option<ConstraintImpulse>,
-    total_contacts: Option<u32>,
-    speed: Option<f64>,
-    angular_speed: Option<f64>,
-    velocity: Option<Velocity>,
-    angular_velocity: Option<f64>,
-    is_sensor: Option<bool>,
-    is_static: Option<bool>,
-    is_sleeping: Option<bool>,
-    motion: Option<f64>,
-    sleep_threshold: Option<u32>,
-    density: Option<f64>,
-    resitution: Option<f64>,
-    friction: Option<f64>,
-    friction_static: Option<f64>,
-    friction_air: Option<f64>,
-    collision_filter: Option<CollisionFilter>,
-    slop: Option<f64>,
-    time_scale: Option<u16>,
-    render: Option<Render>,
-    //events: Option<?>,
-    bounds: Option<Bounds>,
-    chamfer: Option<Vec<Vector>>,
-    circle_radius: Option<f64>,
-    position_prev: Option<Position>,
-    angle_prev: Option<f64>,
-    parent: Option<Box<Body>>,
-    axes: Option<Vec<Vector>>,
-    area: Option<f64>,
-    mass: Option<f64>,
-    inertia: Option<f64>,
-    delta_time: Option<f64>,
-    _original: Option<Box<Body>>,
+pub enum BodyOption {
+    ShapeType(ShapeType),
+    //Parts:
+    //Plugin:
+    Angle(f64),
+    Vertices(Vec<Vector>),
+    Position(Position),
+    Force(Force),
+    Torque(f64),
+    PositionImpulse(Position),
+    ConstraintImpulse(ConstraintImpulse),
+    TotalContracts(u32),
+    Speed(f64),
+    AngularSpeed(f64),
+    Velocity(Velocity),
+    AngularVelocity(f64),
+    IsSensor(bool),
+    IsStatic(bool),
+    IsSleeping(bool),
+    Motion(f64),
+    SleepThreshold(u32),
+    Density(f64),
+    Resitution(f64),
+    Friction(f64),
+    FrictionStatic(f64),
+    FrictionAir(f64),
+    CollisionFilter(CollisionFilter),
+    Slop(f64),
+    TimeScale(u16),
+    Render(Render),
+    //Events
+    Bounds(Bounds),
+    Chamfer(Vec<Vector>),
+    CircleRadius(f64),
+    PositionPrev(Position),
+    AnglePrev(f64),
+    Parent(Body),
+    Axes(Vec<Vector>),
+    Area(f64),
+    Mass(f64),
+    Inertia(f64),
+    DeltaTime(f64),
+    Original(Body),
 }
 
-fn default_body() -> Body {
+fn default_body<'a>() -> Body {
+    let id = common::next_id();
     Body {
-        id: common::next_id(),
+        id: id,
         shape_type: ShapeType::Body,
         //parts???
         //plugin??
         angle: 0.,
-        vertices: vertices::from_path("L 0 0 L 40 0 L 40 40 L 0 40").unwrap(),
-        position: Position { x: 0., y: 0. },
-        force: Force { x: 0., y: 0. },
+        vertices: vertices::from_path("L 0 0 L 40 0 L 40 40 L 0 40", id).unwrap(),
+        position: Position::new(0., 0.),
+        force: Force::new(0., 0.),
         torque: 0.,
-        position_impulse: Position { x: 0., y: 0. },
-        constraint_impulse: ConstraintImpulse {
-            x: 0.,
-            y: 0.,
-            angle: 0.,
-        },
+        position_impulse: Position::new(0., 0.),
+        constraint_impulse: ConstraintImpulse::new(0., 0., 0.),
         total_contacts: 0,
         speed: 0.,
         angular_speed: 0.,
-        velocity: Velocity { x: 0., y: 0. },
+        velocity: Velocity::new(0., 0.),
         angular_velocity: 0.,
         is_sensor: false,
         is_static: false,
@@ -174,23 +143,10 @@ fn default_body() -> Body {
         friction: 0.1,
         friction_static: 0.5,
         friction_air: 0.01,
-        collision_filter: CollisionFilter {
-            category: 1,
-            mask: u32::MAX,
-            group: 0,
-        },
+        collision_filter: CollisionFilter::new(1, u32::MAX, 0),
         slop: 0.05,
         time_scale: 1,
-        render: Render {
-            visible: true,
-            opacity: 1.,
-            sprite: Sprite {
-                x_scale: 1.,
-                y_scale: 1.,
-                x_offset: 0.,
-                y_offset: 0.,
-            },
-        },
+        render: Render::new(true, 1., Sprite::new(1., 1., 0., 0.)),
         bounds: None,
         chamfer: None,
         circle_radius: 0.,
@@ -208,7 +164,15 @@ fn default_body() -> Body {
     }
 }
 
-impl Body {
+impl<'a> Body {
+    fn get_bounds(&self) -> Option<Bounds> {
+        self.bounds
+    }
+
+    fn get_axes(&self) -> Option<Vec<Vertex>> {
+        self.axes.clone()
+    }
+
     fn get_mass(&self) -> f64 {
         self.mass
     }
@@ -226,6 +190,13 @@ impl Body {
     }
 }
 
+const INERTIA_SCALE: f64 = 4.;
+const NEXT_COLLIDING_GROUP_ID: i32 = 1;
+const NEXT_NON_COLLIDING_GROUP_ID: i32 = -1;
+const NEXT_CATEGORY: u16 = 1;
+const BASE_DELTA: f64 = 1000. / 60.;
+const TIME_CORRECTION: bool = true;
+
 pub fn set_inertia(body: &mut Body, inertia: f64) {
     body.inertia = inertia;
     body.inverse_inertia = 1. / body.inertia;
@@ -239,11 +210,88 @@ pub fn set_mass(body: &mut Body, mass: f64) {
     body.density = body.mass / body.area;
 }
 
+pub fn set_vertices(body: &mut Body, vertices: Vec<Vertex>) {
+    let mut vertices = vertices;
+    vertices
+        .iter_mut()
+        .for_each(|vertex| vertex.set_body_id(body.id));
+
+    body.vertices = vertices;
+    body.axes = Some(axes::from_vertices(&body.vertices));
+    body.area = vertices::area(&body.vertices, false);
+    set_mass(body, body.density * body.area);
+    let centre = vertices::centre(&body.vertices);
+    vertices::translate(&mut body.vertices, &centre, Some(-1.0));
+
+    set_inertia(
+        body,
+        INERTIA_SCALE * vertices::innertia(&body.vertices, body.mass),
+    );
+
+    vertices::translate(&mut body.vertices, &body.position, None);
+    if body.bounds.is_some() {
+        let mut bounds = body.bounds.as_mut().unwrap();
+
+        bounds::update(&mut bounds, &body.vertices, Some(&body.velocity));
+        body.bounds = Some(bounds.clone());
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    use crate::test_utils::common_test_utils::assert_float;
+    use crate::{
+        geometry::bounds::BoundsPart,
+        test_utils::{
+            body_test_utils::{assert_position, assert_velocity},
+            common_test_utils::assert_float,
+            geometry_test_utils::{
+                assert_bounds, assert_vertex, assert_xy, test_square, vec_vector_to_vec_vertex,
+            },
+        },
+    };
+
+    #[test]
+    fn set_vertices_should_mutate_the_body_to_contain_valid_values() {
+        // Arrange
+        let vertices = vec_vector_to_vec_vertex(test_square());
+
+        let mut body = default_body();
+        body.id = common::next_id();
+        body.inertia = 1706.6666666666667;
+        body.inverse_inertia = 0.0005859375;
+        body.mass = 1.6;
+        body.inverse_mass = 0.625;
+        body.density = 0.001;
+        body.area = 1600.;
+        body.position = Position::new(2., 2.);
+        body.bounds = Some(Bounds {
+            max: BoundsPart { x: 20.0, y: 20.0 },
+            min: BoundsPart { x: -20.0, y: -20.0 },
+        });
+        body.velocity = Velocity::new(0., 0.);
+
+        // Act
+        set_vertices(&mut body, vertices);
+
+        // Assert
+        assert_float(body.area, 4.0);
+        assert_xy(&body.get_axes().unwrap()[0], 0.0, 1.0);
+        assert_xy(&body.get_axes().unwrap()[1], -1.0, 0.0);
+        assert_bounds(&body.get_bounds().unwrap(), 1.0, 1.0, 3.0, 3.0);
+        assert_float(body.density, 0.001);
+        assert_float(body.inertia, 0.010666666666666666);
+        assert_float(body.inverse_inertia, 93.75);
+        assert_float(body.inverse_mass, 250.0);
+        assert_float(body.mass, 0.004);
+        assert_position(&body.position, 2.0, 2.0);
+        assert_velocity(&body.velocity, 0.0, 0.0);
+        assert_vertex(&body.vertices[0], body.id, 1.0, 1.0, 0, false);
+        assert_vertex(&body.vertices[1], body.id, 3.0, 1.0, 1, false);
+        assert_vertex(&body.vertices[2], body.id, 3.0, 3.0, 2, false);
+        assert_vertex(&body.vertices[3], body.id, 1.0, 3.0, 3, false);
+    }
 
     #[test]
     fn set_mass_should_mutate_value_of_mass_inverse_mass_inertia_inverse_inertia_and_density_to_valid_values(

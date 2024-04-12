@@ -1,15 +1,36 @@
-use crate::geometry::{
-    bounds::{Bounds, BoundsPart},
-    vector,
+use uuid::Uuid;
+
+use crate::{
+    core::xy::XYGet,
+    geometry::{
+        bounds::{Bounds, BoundsPart},
+        vector,
+        vertices::Vertex,
+    },
 };
 
 #[cfg(test)]
 use super::super::geometry;
 use super::{super::geometry::vector::Vector, common_test_utils::assert_float};
 
-pub fn assert_vector(result: &Vector, expected_x: f64, expected_y: f64) {
-    assert_float(result.x, expected_x);
-    assert_float(result.y, expected_y);
+pub fn assert_xy(result: &impl XYGet, expected_x: f64, expected_y: f64) {
+    assert_float(result.get_x(), expected_x);
+    assert_float(result.get_y(), expected_y);
+}
+
+pub fn assert_vertex(
+    result: &Vertex,
+    expected_id: Uuid,
+    expected_x: f64,
+    expected_y: f64,
+    expected_index: usize,
+    expected_is_internal: bool,
+) {
+    assert_eq!(result.get_body_id(), expected_id);
+    assert_float(result.get_x(), expected_x);
+    assert_float(result.get_y(), expected_y);
+    assert_eq!(result.get_index(), expected_index);
+    assert_eq!(result.get_is_internal(), expected_is_internal);
 }
 
 pub fn assert_bounds(result: &Bounds, min_x: f64, min_y: f64, max_x: f64, max_y: f64) {
@@ -17,6 +38,17 @@ pub fn assert_bounds(result: &Bounds, min_x: f64, min_y: f64, max_x: f64, max_y:
     assert_float(result.min.y, min_y);
     assert_float(result.max.x, max_x);
     assert_float(result.max.y, max_y);
+}
+
+pub fn vec_vector_to_vec_vertex(vectors: Vec<Vector>) -> Vec<Vertex> {
+    let mut index = 0_usize;
+    vectors
+        .iter()
+        .map(|vector| {
+            index += 1;
+            Vertex::from_vector(Uuid::new_v4(), vector, index - 1, false)
+        })
+        .collect()
 }
 
 pub fn test_square() -> Vec<Vector> {

@@ -1,56 +1,90 @@
-use super::vector::Vector;
+use crate::core::{velocity::Velocity, xy::XYGet};
 
+use super::{vector::Vector, vertices::Vertex};
+
+#[derive(Clone, Copy)]
 pub struct BoundsPart {
     pub x: f64,
     pub y: f64,
 }
 
+impl XYGet for BoundsPart {
+    fn get_x(&self) -> f64 {
+        self.x
+    }
+
+    fn get_y(&self) -> f64 {
+        self.y
+    }
+}
+
+impl BoundsPart {
+    pub fn new(x: f64, y: f64) -> Self {
+        BoundsPart { x: x, y: y }
+    }
+}
+
+#[derive(Clone, Copy)]
 pub struct Bounds {
     pub min: BoundsPart,
     pub max: BoundsPart,
 }
 
-pub fn update(bounds: &mut Bounds, vertices: &Vec<Vector>, velocity: Option<&Vector>) {
+impl Bounds {
+    pub fn new(min: BoundsPart, max: BoundsPart) -> Self {
+        Bounds { min: min, max: max }
+    }
+
+    pub fn get_min(&self) -> BoundsPart {
+        self.min
+    }
+
+    pub fn get_max(&self) -> BoundsPart {
+        self.max
+    }
+}
+
+pub fn update(bounds: &mut Bounds, vertices: &Vec<Vertex>, velocity: Option<&Velocity>) {
     bounds.min.x = f64::INFINITY;
     bounds.max.x = -f64::INFINITY;
     bounds.min.y = f64::INFINITY;
     bounds.max.y = -f64::INFINITY;
 
     for vertex in vertices {
-        if vertex.x > bounds.max.x {
-            bounds.max.x = vertex.x;
+        if vertex.get_x() > bounds.max.x {
+            bounds.max.x = vertex.get_x();
         }
-        if vertex.x < bounds.min.x {
-            bounds.min.x = vertex.x;
+        if vertex.get_x() < bounds.min.x {
+            bounds.min.x = vertex.get_x();
         }
-        if vertex.y > bounds.max.y {
-            bounds.max.y = vertex.y;
+        if vertex.get_y() > bounds.max.y {
+            bounds.max.y = vertex.get_y();
         }
-        if vertex.y < bounds.min.y {
-            bounds.min.y = vertex.y
+        if vertex.get_y() < bounds.min.y {
+            bounds.min.y = vertex.get_y()
         }
     }
 
     if velocity.is_some() {
         let velocity = velocity.unwrap();
-        if velocity.x > 0.0 {
-            bounds.max.x += velocity.x;
+        if velocity.get_x() > 0.0 {
+            bounds.max.x += velocity.get_x();
         } else {
-            bounds.min.y += velocity.y;
+            bounds.min.y += velocity.get_y();
         }
 
-        if velocity.y > 0.0 {
-            bounds.max.y += velocity.y;
+        if velocity.get_y() > 0.0 {
+            bounds.max.y += velocity.get_y();
         } else {
-            bounds.min.y += velocity.y;
+            bounds.min.y += velocity.get_y();
         }
     }
 }
 
-pub fn create(vertices: Option<&Vec<Vector>>) -> Bounds {
+pub fn create(vertices: Option<&Vec<Vertex>>) -> Bounds {
     let mut bounds = Bounds {
-        min: BoundsPart { x: 0.0, y: 0.0 },
-        max: BoundsPart { x: 0.0, y: 0.0 },
+        min: BoundsPart::new(0., 0.),
+        max: BoundsPart::new(0., 0.),
     };
 
     if vertices.is_some() {
@@ -61,39 +95,41 @@ pub fn create(vertices: Option<&Vec<Vector>>) -> Bounds {
     bounds
 }
 
-pub fn contains(bounds: &Bounds, point: &Vector) -> bool {
-    point.x >= bounds.min.x
-        && point.x <= bounds.max.x
-        && point.y >= bounds.min.y
-        && point.y <= bounds.max.y
+pub fn contains(bounds: &Bounds, point: &impl XYGet) -> bool {
+    point.get_x() >= bounds.min.x
+        && point.get_x() <= bounds.max.get_x()
+        && point.get_y() >= bounds.min.get_y()
+        && point.get_y() <= bounds.max.get_y()
 }
 
 pub fn overlaps(bounds_a: &Bounds, bounds_b: &Bounds) -> bool {
     bounds_a.min.x <= bounds_b.max.x
-        && bounds_a.max.x >= bounds_b.min.x
-        && bounds_a.max.y >= bounds_b.min.y
-        && bounds_a.min.y <= bounds_b.max.y
+        && bounds_a.max.get_x() >= bounds_b.min.get_x()
+        && bounds_a.max.get_y() >= bounds_b.min.get_y()
+        && bounds_a.min.get_y() <= bounds_b.max.get_y()
 }
 
-pub fn translate(bounds: &mut Bounds, vector: &Vector) {
-    bounds.min.x += vector.x;
-    bounds.max.x += vector.x;
-    bounds.min.y += vector.y;
-    bounds.max.y += vector.y;
+pub fn translate(bounds: &mut Bounds, vector: &impl XYGet) {
+    bounds.min.x += vector.get_x();
+    bounds.max.x += vector.get_x();
+    bounds.min.y += vector.get_y();
+    bounds.max.y += vector.get_y();
 }
 
-pub fn shift(bounds: &mut Bounds, position: &Vector) {
+pub fn shift(bounds: &mut Bounds, position: &impl XYGet) {
     let delta_x = bounds.max.x - bounds.min.x;
     let delta_y = bounds.max.y - bounds.min.y;
 
-    bounds.min.x = position.x;
-    bounds.max.x = position.x + delta_x;
-    bounds.min.y = position.y;
-    bounds.max.y = position.y + delta_y;
+    bounds.min.x = position.get_x();
+    bounds.max.x = position.get_x() + delta_x;
+    bounds.min.y = position.get_y();
+    bounds.max.y = position.get_y() + delta_y;
 }
 
 #[cfg(test)]
 mod tests {
+
+    use uuid::Uuid;
 
     use crate::geometry::{vector, vertices};
     use crate::test_utils::geometry_test_utils::{
@@ -200,7 +236,7 @@ mod tests {
     #[test]
     fn create_should_create_a_valid_bounds_from_vertices() {
         let points = test_square_with_decimals();
-        let vertices = vertices::create(points);
+        let vertices = vertices::create(points, Uuid::new_v4());
 
         // Act
         let result = create(Some(&vertices));
@@ -212,7 +248,7 @@ mod tests {
     #[test]
     fn update_should_mutate_bounds_with_vertices_without_velocity() {
         let points = test_square_with_decimals();
-        let vertices = vertices::create(points);
+        let vertices = vertices::create(points, Uuid::new_v4());
         let mut bounds = test_bounds();
 
         // Act
@@ -225,8 +261,8 @@ mod tests {
     #[test]
     fn update_should_mutate_bounds_with_vertices_and_velocity() {
         let points = test_square_with_decimals();
-        let vertices = vertices::create(points);
-        let velocity = vector::create(5.0, 6.0);
+        let vertices = vertices::create(points, Uuid::new_v4());
+        let velocity = Velocity::new(5., 6.);
         let mut bounds = test_bounds();
 
         // Act
