@@ -26,8 +26,14 @@ impl XYSet for Vector {
     }
 }
 
+impl Vector {
+    pub fn new(x: f64, y: f64) -> Self {
+        Vector { x: x, y: y }
+    }
+}
+
 pub fn create(x: f64, y: f64) -> Vector {
-    Vector { x: x, y: y }
+    Vector::new(x, y)
 }
 
 pub fn magnitude(vector: &impl XYGet) -> f64 {

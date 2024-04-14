@@ -1,5 +1,6 @@
 use super::sprite::Sprite;
 
+#[derive(Clone, Copy)]
 pub struct Render {
     visible: bool,
     opacity: f64,

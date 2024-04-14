@@ -1,5 +1,6 @@
 use super::xy::XYGet;
 
+#[derive(Clone, Copy)]
 pub struct ConstraintImpulse {
     x: f64,
     y: f64,

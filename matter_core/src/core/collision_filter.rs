@@ -1,3 +1,4 @@
+#[derive(Clone, Copy)]
 pub struct CollisionFilter {
     category: u16,
     mask: u32,
