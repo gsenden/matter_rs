@@ -1,4 +1,4 @@
-use std::{borrow::Borrow, cell::Ref};
+use std::{borrow::Borrow, cell::Ref, ops::Deref};
 
 use crate::{
     core::{
@@ -10,6 +10,7 @@ use crate::{
         render::Render,
         sprite::Sprite,
         velocity::Velocity,
+        xy::{XYGet, XYSet},
     },
     geometry::{
         axes,
@@ -336,6 +337,40 @@ impl Body {
 
     fn total_properties(&self) -> BodyProperties {
         let mut properties = BodyProperties::new(0., 0., 0., Position::new(0., 0.));
+
+        if self.parts.is_some() {
+            let mut skip_first = if self.parts.as_ref().unwrap().len() == 1 {
+                false
+            } else {
+                true
+            };
+            self.parts.as_ref().unwrap().iter().for_each(|part| {
+                if skip_first {
+                    skip_first = false;
+                } else {
+                    let part = part.deref();
+                    let mass = if part.get_mass() != f64::INFINITY {
+                        part.get_mass()
+                    } else {
+                        1.
+                    };
+
+                    properties.set_mass(properties.get_mass() + mass);
+                    properties.set_area(properties.get_area() + part.get_area());
+                    properties.set_inertia(properties.get_inertia() + part.get_inertia());
+                    properties.set_centre(&vector::add(
+                        &properties.get_centre(),
+                        &vector::mult(&part.get_position(), mass),
+                    ));
+                }
+            });
+
+            properties.set_centre(&vector::div(
+                &properties.get_centre(),
+                properties.get_mass(),
+            ));
+        }
+
         properties
     }
 }

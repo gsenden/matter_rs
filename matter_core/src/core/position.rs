@@ -1,4 +1,4 @@
-use super::xy::XYGet;
+use super::xy::{XYGet, XYSet};
 
 #[derive(Clone, Copy)]
 pub struct Position {
@@ -19,5 +19,15 @@ impl XYGet for Position {
 impl Position {
     pub fn new(x: f64, y: f64) -> Self {
         Position { x: x, y: y }
+    }
+}
+
+impl XYSet for Position {
+    fn set_x(&mut self, x: f64) {
+        self.x = x;
+    }
+
+    fn set_y(&mut self, y: f64) {
+        self.y = y;
     }
 }
