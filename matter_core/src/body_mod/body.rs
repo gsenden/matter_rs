@@ -288,7 +288,7 @@ impl Body {
         self.mass
     }
 
-    pub fn get_iverse_mass(&self) -> f64 {
+    pub fn get_inverse_mass(&self) -> f64 {
         self.inverse_mass
     }
 
@@ -386,11 +386,20 @@ impl Body {
 
         body_parts.push(Box::new(self.clone()));
         self.parent = Some(Rc::downgrade(&parent_rc));
+        let mut hull: Option<Vec<Vertex>> = None;
+        let mut hull_centre: Option<Vector> = None;
 
+        let auto_hull = auto_hull.unwrap_or(false);
         if auto_hull {
-            parts.iter().reduce(|acc, cur|)
+            let mut vertices: Vec<Vertex> = Vec::new();
+            parts.iter().for_each(|part| {
+                 vertices.append(&mut part.get_vertices());
+            });
+            vertices::clockwise_sort(&mut vertices);
+            vertices::hull(&mut vertices);
+            hull = Some(vertices.clone());
+            hull_centre = Some(vertices::centre(&vertices));
         }
-
 
         parts.into_iter().for_each(|part| {
             if part.get_id() != self.get_id() {
@@ -399,15 +408,25 @@ impl Body {
                 body_parts.push(Box::new(part));
             }
         });
+        let new_parts_len = body_parts.len();
         self.parts = Some(body_parts);
-
-        if body_parts.len() == 1 {
+        
+        if new_parts_len == 1 {
             return;
         }
 
-        let auto_hull = auto_hull.unwrap_or(false);
+        if auto_hull && hull.is_some() && hull_centre.is_some() {
+            self.set_vertices(hull.unwrap());
+            vertices::translate(&mut self.vertices, &hull_centre.unwrap(), None);
+        }
 
-        
+        let total = self.total_properties();
+        self.area = total.get_area();
+        self.position = total.get_centre();   
+        self.position_prev = Some(total.get_centre());
+        self.set_mass(total.get_mass());
+        self.set_inertia(total.get_inertia());
+        //self.set
     }
 }
 
@@ -456,9 +475,52 @@ mod tests {
         let auto_hull = false;
 
         // Act
-        body.set_parts(parts, Som(auto_hull));
+        body.set_parts(parts, Some(auto_hull));
 
-        assert!(body.parts.unwrap().len() == 6);
+        // Assert
+        assert_float(body.get_area(), 3203.);
+        assert_bounds(&body.get_bounds().unwrap(), 3., 3., 5., 5.);
+        assert_float(body.get_density(), 0.0019356852950359038);
+        assert_float(body.get_inertia(), 3416.3333333333335);
+        assert_float(body.get_inverse_inertia(), 0.0002927114840472241);
+        assert_float(body.get_inverse_mass(), 0.16129032258064516);
+        assert_float(body.get_mass(), 6.2);
+        assert_xy(&body.get_position(), 1.5806451612903227, 1.5806451612903227);
+        assert_xy(&body.get_position_prev().unwrap(), 1.5806451612903227, 1.5806451612903227);
+        assert_xy(&body.get_vertices()[0], 1., 1.);
+        assert_xy(&body.get_vertices()[1], 3., 1.);
+        assert_xy(&body.get_vertices()[2], 3., 3.);
+        assert_xy(&body.get_vertices()[3], 1., 3.);
+        assert_eq!(body.get_parts().unwrap().len(), 3);
+        assert_eq!(body.get_vertices().len(), 4);
+
+        let parts = body.get_parts().unwrap();
+        assert_float( parts[1].get_area(), 1601.);
+        assert_bounds(&parts[1].get_bounds().unwrap(), 3., 3., 5., 5.);
+        assert_float( parts[1].get_inertia(), 1707.6666666666667);
+        assert_float( parts[1].get_mass(), 2.6);
+        assert_xy(&parts[1].get_position(), 1., 1.);
+        assert_xy(&parts[1].get_position_prev().unwrap(), 1.5806451612903227, 1.5806451612903227);
+        assert_xy(&parts[1].get_vertices()[0], 2., 2.);
+        assert_xy(&parts[1].get_vertices()[1], 4., 2.);
+        assert_xy(&parts[1].get_vertices()[2], 4., 4.);
+        assert_xy(&parts[1].get_vertices()[3], 2., 4.);
+        assert_eq!(parts[1].get_parts().unwrap().len(), 3);
+        assert_eq!(parts[1].get_vertices().len(), 4);
+
+        assert_float( parts[2].get_area(), 1602.);
+        assert_bounds(&parts[2].get_bounds().unwrap(), 3., 3., 5., 5.);
+        assert_float( parts[2].get_inertia(), 1708.6666666666667);
+        assert_float( parts[2].get_mass(), 3.6);
+        assert_xy(&parts[2].get_position(), 2., 2.);
+        assert_xy(&parts[2].get_position_prev().unwrap(), 1.5806451612903227, 1.5806451612903227);
+        assert_xy(&parts[2].get_vertices()[0], 3., 3.);
+        assert_xy(&parts[2].get_vertices()[1], 5., 3.);
+        assert_xy(&parts[2].get_vertices()[2], 5., 5.);
+        assert_xy(&parts[2].get_vertices()[3], 3., 5.);
+        assert_eq!(parts[2].get_parts().unwrap().len(), 3);
+        assert_eq!(parts[2].get_vertices().len(), 4);
+
     }
 
     #[test]
