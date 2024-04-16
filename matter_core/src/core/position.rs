@@ -1,6 +1,6 @@
 use super::xy::{XYGet, XYSet};
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct Position {
     x: f64,
     y: f64,

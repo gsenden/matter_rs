@@ -1,4 +1,10 @@
-use std::{borrow::Borrow, cell::Ref, ops::Deref};
+use std::{
+    borrow::Borrow,
+    cell::Ref,
+    mem,
+    ops::Deref,
+    rc::{Rc, Weak},
+};
 
 use crate::{
     core::{
@@ -24,7 +30,7 @@ use uuid::Uuid;
 
 use super::body_properties::BodyProperties;
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct Body {
     id: Uuid,
     shape_type: ShapeType,
@@ -62,7 +68,7 @@ pub struct Body {
     circle_radius: f64,
     position_prev: Option<Position>,
     angle_prev: f64,
-    //parent: Option<Box<Body>>,
+    parent: Option<Weak<Body>>,
     axes: Option<Vec<Vertex>>,
     area: f64,
     mass: f64,
@@ -118,7 +124,7 @@ impl Body {
             circle_radius: 0.,
             position_prev: None,
             angle_prev: 0.,
-            //parent: None,
+            parent: None,
             axes: None,
             area: 0.,
             mass: 0.,
@@ -373,6 +379,36 @@ impl Body {
 
         properties
     }
+
+    fn set_parts(&mut self, parts: Vec<Body>, auto_hull: Option<bool>) {
+        let parent_rc = Rc::<Body>::new(mem::take(self));
+        let mut body_parts: Vec<Box<Body>> = Vec::new();
+
+        body_parts.push(Box::new(self.clone()));
+        self.parent = Some(Rc::downgrade(&parent_rc));
+
+        if auto_hull {
+            parts.iter().reduce(|acc, cur|)
+        }
+
+
+        parts.into_iter().for_each(|part| {
+            if part.get_id() != self.get_id() {
+                let mut part = part;
+                part.parent = Some(Rc::downgrade(&parent_rc));
+                body_parts.push(Box::new(part));
+            }
+        });
+        self.parts = Some(body_parts);
+
+        if body_parts.len() == 1 {
+            return;
+        }
+
+        let auto_hull = auto_hull.unwrap_or(false);
+
+        
+    }
 }
 
 #[cfg(test)]
@@ -386,10 +422,44 @@ mod tests {
             body_test_utils::{assert_position, assert_velocity},
             common_test_utils::assert_float,
             geometry_test_utils::{
-                assert_bounds, assert_vertex, assert_xy, test_square, vec_vector_to_vec_vertex,
+                assert_bounds, assert_vertex, assert_xy, test_bounds, test_square,
+                vec_vector_to_vec_vertex,
             },
         },
     };
+
+    #[test]
+    fn set_parts_should_update_body_with_parts_without_setting_autohull() {
+        // Arrange
+        let mut body = Body::default_body();
+        body.id = common::next_id();
+        body.mass = 1.6;
+        body.area = 1600.;
+        body.inertia = 1706.6666666666667;
+        //body.parts = Some(vec![]);
+        body.position = Position::new(2., 2.);
+        body.position_prev = Some(Position::new(1., 1.));
+        body.vertices = vec_vector_to_vec_vertex(test_square());
+        body.bounds = Some(test_bounds());
+        let parts = [1., 2., 3., 4., 5.]
+            .iter()
+            .map(|increase| {
+                let mut part = body.clone();
+                part.id = common::next_id();
+                part.mass += increase;
+                part.area += increase;
+                part.inertia += increase;
+                part.position = Position::new(*increase, *increase);
+                part
+            })
+            .collect_vec();
+        let auto_hull = false;
+
+        // Act
+        body.set_parts(parts, Som(auto_hull));
+
+        assert!(body.parts.unwrap().len() == 6);
+    }
 
     #[test]
     fn total_properties_should_sum_the_properties_of_all_compound_parts_of_the_given_body() {

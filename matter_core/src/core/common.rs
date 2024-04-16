@@ -1,7 +1,8 @@
 use uuid::Uuid;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub enum ShapeType {
+    #[default]
     Body,
 }
 

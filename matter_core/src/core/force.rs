@@ -1,6 +1,6 @@
 use super::xy::XYGet;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct Force {
     x: f64,
     y: f64,

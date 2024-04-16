@@ -1,4 +1,4 @@
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct Sprite {
     x_scale: f64,
     y_scale: f64,
