@@ -1,7 +1,7 @@
 use uuid::Uuid;
 
 use crate::{
-    core::xy::XYGet,
+    core::xy::XY,
     geometry::{
         bounds::{Bounds, BoundsPart},
         vector,
@@ -13,7 +13,7 @@ use crate::{
 use super::super::geometry;
 use super::{super::geometry::vector::Vector, common_test_utils::assert_float};
 
-pub fn assert_xy(result: &impl XYGet, expected_x: f64, expected_y: f64) {
+pub fn assert_xy(result: &impl XY, expected_x: f64, expected_y: f64) {
     assert_float(result.get_x(), expected_x);
     assert_float(result.get_y(), expected_y);
 }

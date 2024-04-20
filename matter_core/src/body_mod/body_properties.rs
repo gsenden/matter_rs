@@ -1,7 +1,4 @@
-use crate::core::{
-    position::Position,
-    xy::{XYGet, XYSet},
-};
+use crate::core::{position::Position, xy::XY};
 
 #[derive(Clone, Copy)]
 pub struct BodyProperties {
@@ -49,18 +46,26 @@ impl BodyProperties {
         self.inertia = inertia;
     }
 
-    pub fn set_centre(&mut self, centre: &impl XYGet) {
+    pub fn set_centre(&mut self, centre: &impl XY) {
         self.centre.set_x(centre.get_x());
         self.centre.set_y(centre.get_y());
     }
 }
 
-impl XYSet for BodyProperties {
+impl XY for BodyProperties {
     fn set_x(&mut self, x: f64) {
         self.centre.set_x(x);
     }
 
     fn set_y(&mut self, y: f64) {
         self.centre.set_y(y);
+    }
+
+    fn get_x(&self) -> f64 {
+        self.centre.get_x()
+    }
+
+    fn get_y(&self) -> f64 {
+        self.centre.get_y()
     }
 }

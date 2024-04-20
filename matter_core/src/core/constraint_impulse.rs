@@ -1,4 +1,4 @@
-use super::xy::XYGet;
+use super::xy::XY;
 
 #[derive(Clone, Copy, Default)]
 pub struct ConstraintImpulse {
@@ -7,13 +7,21 @@ pub struct ConstraintImpulse {
     angle: f64,
 }
 
-impl XYGet for ConstraintImpulse {
+impl XY for ConstraintImpulse {
     fn get_x(&self) -> f64 {
         self.x
     }
 
     fn get_y(&self) -> f64 {
         self.y
+    }
+
+    fn set_x(&mut self, x: f64) {
+        self.x = x;
+    }
+
+    fn set_y(&mut self, y: f64) {
+        self.y = y;
     }
 }
 

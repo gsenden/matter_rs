@@ -1,4 +1,4 @@
-use crate::core::{velocity::Velocity, xy::XYGet};
+use crate::core::{velocity::Velocity, xy::XY};
 
 use super::{vector::Vector, vertices::Vertex};
 
@@ -8,13 +8,21 @@ pub struct BoundsPart {
     pub y: f64,
 }
 
-impl XYGet for BoundsPart {
+impl XY for BoundsPart {
     fn get_x(&self) -> f64 {
         self.x
     }
 
     fn get_y(&self) -> f64 {
         self.y
+    }
+
+    fn set_x(&mut self, x: f64) {
+        self.x = x;
+    }
+
+    fn set_y(&mut self, y: f64) {
+        self.y = y;
     }
 }
 
@@ -95,7 +103,7 @@ pub fn create(vertices: Option<&Vec<Vertex>>) -> Bounds {
     bounds
 }
 
-pub fn contains(bounds: &Bounds, point: &impl XYGet) -> bool {
+pub fn contains(bounds: &Bounds, point: &impl XY) -> bool {
     point.get_x() >= bounds.min.x
         && point.get_x() <= bounds.max.get_x()
         && point.get_y() >= bounds.min.get_y()
@@ -109,14 +117,14 @@ pub fn overlaps(bounds_a: &Bounds, bounds_b: &Bounds) -> bool {
         && bounds_a.min.get_y() <= bounds_b.max.get_y()
 }
 
-pub fn translate(bounds: &mut Bounds, vector: &impl XYGet) {
+pub fn translate(bounds: &mut Bounds, vector: &impl XY) {
     bounds.min.x += vector.get_x();
     bounds.max.x += vector.get_x();
     bounds.min.y += vector.get_y();
     bounds.max.y += vector.get_y();
 }
 
-pub fn shift(bounds: &mut Bounds, position: &impl XYGet) {
+pub fn shift(bounds: &mut Bounds, position: &impl XY) {
     let delta_x = bounds.max.x - bounds.min.x;
     let delta_y = bounds.max.y - bounds.min.y;
 

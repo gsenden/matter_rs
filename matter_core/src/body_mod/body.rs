@@ -12,11 +12,11 @@ use crate::{
         common::{self, ShapeType},
         constraint_impulse::ConstraintImpulse,
         force::Force,
-        position::Position,
+        position::{self, Position},
         render::Render,
         sprite::Sprite,
-        velocity::Velocity,
-        xy::{XYGet, XYSet},
+        velocity::{self, Velocity},
+        xy::{XYFrom, XY},
     },
     geometry::{
         axes,
@@ -304,6 +304,14 @@ impl Body {
         self.delta_time
     }
 
+    pub fn update_bounds(&mut self, vertices: &Vec<Vertex>, velocity: Option<&Velocity>) {
+        if self.bounds.is_some() {
+            let mut bounds = self.bounds.unwrap();
+            bounds::update(&mut bounds, &vertices, velocity);
+            self.bounds = Some(bounds);
+        }
+    }
+
     pub fn set_inertia(&mut self, inertia: f64) {
         self.inertia = inertia;
         self.inverse_inertia = 1. / self.inertia;
@@ -428,6 +436,31 @@ impl Body {
         self.set_inertia(total.get_inertia());
         //self.set
     }
+
+    fn set_position(&mut self, position: Position, update_velocity: bool) {
+        let delta = vector::sub(&position, &self.position);
+        if update_velocity {
+            self.position_prev = Some(self.position.clone());
+            self.velocity.set_xy(&delta);
+            self.speed = vector::magnitude(&delta);
+        } else {
+            match self.position_prev {
+                Some(ref mut position_prev) => position_prev.add_xy(&delta),
+                None => self.position_prev = Some(Position::new_from_xy(&delta)),
+            };
+        }
+
+        if let Some(mut parts) = self.parts.clone() {
+            parts.iter_mut().for_each(|part| {
+                part.position.add_xy(&delta);
+                vertices::translate(&mut part.get_vertices(), &delta, None);
+                let velocity = self.get_velocity();
+
+                part.update_bounds(&part.get_vertices(), Some(&velocity));
+            });
+            self.parts = Some(parts);
+        }
+    }
 }
 
 #[cfg(test)]
@@ -435,7 +468,7 @@ mod tests {
     use super::*;
 
     use crate::{
-        core::position::Position,
+        core::position::{self, Position},
         geometry::bounds::BoundsPart,
         test_utils::{
             body_test_utils::{assert_position, assert_velocity},
@@ -446,6 +479,82 @@ mod tests {
             },
         },
     };
+
+    #[test]
+    fn set_bounds_should_update_body_with_position_without_setting_velocity() {
+        // Arrange
+        let mut body = Body::default_body();
+        body.id = common::next_id();
+        body.position = Position::new(2., 2.);
+        body.position_prev = Some(Position::new(1., 1.));
+        body.velocity = Velocity::new(42., 42.);
+        body.parts = Some(
+            [1., 2.]
+                .iter()
+                .map(|increase| {
+                    let mut part = body.clone();
+                    part.id = common::next_id();
+                    part.bounds = Some(test_bounds());
+                    part.position = Position::new(*increase, *increase);
+                    part.vertices = vec_vector_to_vec_vertex(test_square())
+                        .iter_mut()
+                        .map(|vertex| {
+                            vertex.set_x(vertex.get_x() + increase);
+                            vertex.set_y(vertex.get_y() + increase);
+                            *vertex
+                        })
+                        .collect_vec();
+                    Box::new(part)
+                })
+                .collect_vec(),
+        );
+        let position = Position::new(37., 37.);
+        let update_velocity = false;
+
+        // Act
+        body.set_position(position, update_velocity);
+
+        // Assert
+        assert_xy(&body.position, 2., 2.);
+        assert_xy(&body.position_prev.unwrap(), 36., 36.);
+        assert_xy(&body.velocity, 42., 42.);
+        // assert_bounds(
+        //     &body.get_parts().unwrap()[0].bounds.unwrap(),
+        //     37.,
+        //     37.,
+        //     81.,
+        //     81.,
+        // );
+        assert_xy(&body.get_parts().unwrap()[0].position, 36., 36.);
+        assert_xy(
+            &body.get_parts().unwrap()[0].position_prev.unwrap(),
+            36.,
+            36.,
+        );
+        assert_xy(&body.get_parts().unwrap()[0].velocity, 42., 42.);
+        assert_xy(&body.get_parts().unwrap()[0].vertices[0], 37., 37.);
+        assert_xy(&body.get_parts().unwrap()[0].vertices[1], 39., 37.);
+        assert_xy(&body.get_parts().unwrap()[0].vertices[2], 39., 39.);
+        assert_xy(&body.get_parts().unwrap()[0].vertices[3], 37., 39.);
+        assert_bounds(
+            &body.get_parts().unwrap()[1].bounds.unwrap(),
+            38.,
+            38.,
+            82.,
+            82.,
+        );
+        assert_xy(&body.get_parts().unwrap()[1].position, 37., 37.);
+        assert_xy(
+            &body.get_parts().unwrap()[1].position_prev.unwrap(),
+            36.,
+            36.,
+        );
+        assert_xy(&body.get_parts().unwrap()[1].velocity, 42., 42.);
+        assert_xy(&body.get_parts().unwrap()[1].vertices[0], 38., 38.);
+        assert_xy(&body.get_parts().unwrap()[1].vertices[1], 40., 38.);
+        assert_xy(&body.get_parts().unwrap()[1].vertices[2], 40., 40.);
+        assert_xy(&body.get_parts().unwrap()[1].vertices[3], 38., 40.);
+    }
 
     #[test]
     fn set_parts_should_update_body_with_parts_without_setting_autohull() {

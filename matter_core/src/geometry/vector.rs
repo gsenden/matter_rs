@@ -1,4 +1,4 @@
-use crate::core::xy::{XYGet, XYSet};
+use crate::core::xy::XY;
 
 #[derive(Clone, Copy)]
 pub struct Vector {
@@ -6,7 +6,7 @@ pub struct Vector {
     y: f64,
 }
 
-impl XYGet for Vector {
+impl XY for Vector {
     fn get_x(&self) -> f64 {
         self.x
     }
@@ -14,9 +14,7 @@ impl XYGet for Vector {
     fn get_y(&self) -> f64 {
         self.y
     }
-}
 
-impl XYSet for Vector {
     fn set_x(&mut self, x: f64) {
         self.x = x;
     }
@@ -36,20 +34,20 @@ pub fn create(x: f64, y: f64) -> Vector {
     Vector::new(x, y)
 }
 
-pub fn magnitude(vector: &impl XYGet) -> f64 {
+pub fn magnitude(vector: &impl XY) -> f64 {
     magnitude_squared(vector).sqrt()
 }
 
-pub fn magnitude_squared(vector: &impl XYGet) -> f64 {
+pub fn magnitude_squared(vector: &impl XY) -> f64 {
     vector.get_x().powi(2) + vector.get_y().powi(2)
 }
 
-pub fn rotate(vector: &impl XYGet, angle: f64) -> Vector {
+pub fn rotate(vector: &impl XY, angle: f64) -> Vector {
     let point = create(0.0, 0.0);
     rotate_about(vector, angle, &point)
 }
 
-pub fn rotate_about(vector: &impl XYGet, angle: f64, point: &impl XYGet) -> Vector {
+pub fn rotate_about(vector: &impl XY, angle: f64, point: &impl XY) -> Vector {
     let cos = angle.cos();
     let sin = angle.sin();
     let x = point.get_x()
@@ -59,7 +57,7 @@ pub fn rotate_about(vector: &impl XYGet, angle: f64, point: &impl XYGet) -> Vect
     create(x, y)
 }
 
-pub fn normalise(vector: &impl XYGet) -> Vector {
+pub fn normalise(vector: &impl XY) -> Vector {
     let magnitude = magnitude(vector);
     if magnitude == 0.0 {
         create(0.0_f64, 0.0_f64)
@@ -68,53 +66,53 @@ pub fn normalise(vector: &impl XYGet) -> Vector {
     }
 }
 
-pub fn dot(vector: &impl XYGet, multiplier: &impl XYGet) -> f64 {
+pub fn dot(vector: &impl XY, multiplier: &impl XY) -> f64 {
     vector.get_x() * multiplier.get_x() + vector.get_y() * multiplier.get_y()
 }
 
-pub fn cross3(vector_a: &impl XYGet, vector_b: &impl XYGet, vector_c: &impl XYGet) -> f64 {
+pub fn cross3(vector_a: &impl XY, vector_b: &impl XY, vector_c: &impl XY) -> f64 {
     (vector_b.get_x() - vector_a.get_x()) * (vector_c.get_y() - vector_a.get_y())
         - (vector_b.get_y() - vector_a.get_y()) * (vector_c.get_x() - vector_a.get_x())
 }
 
-pub fn cross(vector_a: &impl XYGet, vector_b: &impl XYGet) -> f64 {
+pub fn cross(vector_a: &impl XY, vector_b: &impl XY) -> f64 {
     (vector_a.get_x() * vector_b.get_y()) - (vector_a.get_y() * vector_b.get_x())
 }
 
-pub fn add(vector: &impl XYGet, vector_b: &impl XYGet) -> Vector {
+pub fn add(vector: &impl XY, vector_b: &impl XY) -> Vector {
     create(
         vector.get_x() + vector_b.get_x(),
         vector.get_y() + vector_b.get_y(),
     )
 }
 
-pub fn sub(vector_a: &impl XYGet, vector_b: &impl XYGet) -> Vector {
+pub fn sub(vector_a: &impl XY, vector_b: &impl XY) -> Vector {
     create(
         vector_a.get_x() - vector_b.get_x(),
         vector_a.get_y() - vector_b.get_y(),
     )
 }
 
-pub fn mult(vector: &impl XYGet, scalar: f64) -> Vector {
+pub fn mult(vector: &impl XY, scalar: f64) -> Vector {
     create(vector.get_x() * scalar, vector.get_y() * scalar)
 }
 
-pub fn div(vector: &impl XYGet, scalar: f64) -> Vector {
+pub fn div(vector: &impl XY, scalar: f64) -> Vector {
     create(vector.get_x() / scalar, vector.get_y() / scalar)
 }
 
-pub fn perp(vector: &impl XYGet, negate: bool) -> Vector {
+pub fn perp(vector: &impl XY, negate: bool) -> Vector {
     let negate_factor = if negate { -1.0 } else { 1.0 };
     let x = negate_factor * (vector.get_y() * -1.0);
     let y = negate_factor * vector.get_x();
     create(x, y)
 }
 
-pub fn neg(vector: &impl XYGet) -> Vector {
+pub fn neg(vector: &impl XY) -> Vector {
     mult(vector, -1.0)
 }
 
-pub fn angle(vector_a: &impl XYGet, vector_b: &impl XYGet) -> f64 {
+pub fn angle(vector_a: &impl XY, vector_b: &impl XY) -> f64 {
     f64::atan2(
         vector_b.get_y() - vector_a.get_y(),
         vector_b.get_x() - vector_a.get_x(),

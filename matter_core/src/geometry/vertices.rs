@@ -3,7 +3,7 @@ use std::cmp::Ordering;
 use std::vec;
 use uuid::Uuid;
 
-use crate::core::xy::{XYGet, XYSet};
+use crate::core::xy::XY;
 
 use super::super::core::common;
 use super::vector::{self, Vector};
@@ -18,7 +18,7 @@ pub struct Vertex {
     is_internal: bool,
 }
 
-impl XYGet for Vertex {
+impl XY for Vertex {
     fn get_x(&self) -> f64 {
         self.x
     }
@@ -26,9 +26,7 @@ impl XYGet for Vertex {
     fn get_y(&self) -> f64 {
         self.y
     }
-}
 
-impl XYSet for Vertex {
     fn set_x(&mut self, x: f64) {
         self.x = x;
     }
@@ -188,7 +186,7 @@ pub fn innertia(vertices: &Vec<Vertex>, mass: f64) -> f64 {
     (mass / 6.0) * (numerator / denominator)
 }
 
-pub fn translate(vertices: &mut Vec<Vertex>, vector: &impl XYGet, scalar: Option<f64>) {
+pub fn translate(vertices: &mut Vec<Vertex>, vector: &impl XY, scalar: Option<f64>) {
     let scalar = if scalar.is_some() {
         scalar.unwrap()
     } else {
@@ -204,7 +202,7 @@ pub fn translate(vertices: &mut Vec<Vertex>, vector: &impl XYGet, scalar: Option
     }
 }
 
-pub fn contains(vertices: &Vec<Vertex>, point: &impl XYGet) -> bool {
+pub fn contains(vertices: &Vec<Vertex>, point: &impl XY) -> bool {
     let mut previous_vector = &vertices[vertices.len() - 1];
     for vertex in vertices {
         if (point.get_x() - previous_vector.x) * (vertex.y - previous_vector.y)

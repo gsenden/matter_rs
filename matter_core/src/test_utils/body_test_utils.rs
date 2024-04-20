@@ -1,6 +1,6 @@
 use crate::core::position::Position;
 use crate::core::velocity::Velocity;
-use crate::core::xy::XYGet;
+use crate::core::xy::XY;
 
 use super::common_test_utils::assert_float;
 

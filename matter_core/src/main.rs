@@ -2,7 +2,7 @@ mod core;
 use crate::core::common;
 
 mod test_utils;
-use crate::core::xy::XYGet;
+use crate::core::xy::XY;
 use crate::test_utils::geometry_test_utils;
 
 mod geometry;

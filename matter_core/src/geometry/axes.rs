@@ -1,5 +1,5 @@
 use crate::core::common::OrderedHashMap;
-use crate::core::xy::{XYGet, XYSet};
+use crate::core::xy::XY;
 
 use super::{
     vector::{self},
