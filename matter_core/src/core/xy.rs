@@ -14,6 +14,11 @@ pub trait XY {
     }
 }
 
-pub trait XYFrom<T> {
-    fn new_from_xy(xy_get: &impl XY) -> T;
+pub trait XYNew {
+    type XY;
+
+    fn new(x: f64, y: f64) -> Self::XY;
+    fn new_from(xy: &impl XY) -> Self::XY {
+        <Self as XYNew>::new(xy.get_x(), xy.get_y())
+    }
 }

@@ -1,4 +1,7 @@
-use crate::core::{velocity::Velocity, xy::XY};
+use crate::core::{
+    velocity::Velocity,
+    xy::{XYNew, XY},
+};
 
 use super::{vector::Vector, vertices::Vertex};
 
@@ -26,8 +29,9 @@ impl XY for BoundsPart {
     }
 }
 
-impl BoundsPart {
-    pub fn new(x: f64, y: f64) -> Self {
+impl XYNew for BoundsPart {
+    type XY = BoundsPart;
+    fn new(x: f64, y: f64) -> Self {
         BoundsPart { x: x, y: y }
     }
 }

@@ -1,4 +1,4 @@
-use super::xy::XY;
+use super::xy::{XYNew, XY};
 
 #[derive(Clone, Copy, Default)]
 pub struct Velocity {
@@ -24,8 +24,9 @@ impl XY for Velocity {
     }
 }
 
-impl Velocity {
-    pub fn new(x: f64, y: f64) -> Self {
+impl XYNew for Velocity {
+    type XY = Velocity;
+    fn new(x: f64, y: f64) -> Self {
         Velocity { x: x, y: y }
     }
 }

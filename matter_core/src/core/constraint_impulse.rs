@@ -42,13 +42,3 @@ impl ConstraintImpulse {
     //     self.angle = angle
     // }
 }
-
-// impl XYSet for ConstraintImpulse {
-//     fn set_x(&mut self, x: f64) {
-//         self.x = x;
-//     }
-
-//     fn set_y(&mut self, y: f64) {
-//         self.y = y;
-//     }
-// }

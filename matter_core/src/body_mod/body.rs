@@ -16,7 +16,7 @@ use crate::{
         render::Render,
         sprite::Sprite,
         velocity::{self, Velocity},
-        xy::{XYFrom, XY},
+        xy::{XYNew, XY},
     },
     geometry::{
         axes,
@@ -77,7 +77,7 @@ pub struct Body {
     inertia: f64,
     inverse_inertia: f64,
     delta_time: f64,
-    _original: Option<Box<Body<'a>>>,
+    _original: Option<Box<Body>>,
 }
 const INERTIA_SCALE: f64 = 4.;
 const NEXT_COLLIDING_GROUP_ID: i32 = 1;
@@ -139,7 +139,6 @@ impl<'a> Body {
             delta_time: 1000. / 60.,
             _original: None,
         };
-        body.parts.push(Rc::new(&body));
         body
     }
 
@@ -361,31 +360,37 @@ impl<'a> Body {
         }
     }
 
+    pub fn update_properties_for_part(properties: &mut BodyProperties, part: &Body) {
+        let mass = if part.get_mass() != f64::INFINITY {
+            part.get_mass()
+        } else {
+            1.
+        };
+
+        print!("{}", mass);
+
+        properties.set_mass(properties.get_mass() + mass);
+        properties.set_area(properties.get_area() + part.get_area());
+        properties.set_inertia(properties.get_inertia() + part.get_inertia());
+        properties.set_centre(&vector::add(
+            &properties.get_centre(),
+            &vector::mult(&part.get_position(), mass),
+        ));
+    }
+
     fn total_properties(&self) -> BodyProperties {
         let mut properties = BodyProperties::new(0., 0., 0., Position::new(0., 0.));
 
-        //let mut skip_first = if self.parts.len() == 1 { false } else { true };
-        if let Some(part) 
-        self.parts.iter().for_each(|part| {
-            // if skip_first {
-            //     skip_first = false;
-            // } else {
-            let part = part.deref();
-            let mass = if part.get_mass() != f64::INFINITY {
-                part.get_mass()
-            } else {
-                1.
-            };
-
-            properties.set_mass(properties.get_mass() + mass);
-            properties.set_area(properties.get_area() + part.get_area());
-            properties.set_inertia(properties.get_inertia() + part.get_inertia());
-            properties.set_centre(&vector::add(
-                &properties.get_centre(),
-                &vector::mult(&part.get_position(), mass),
-            ));
-            //}
-        });
+        // sum the properties of all compound parts of the parent body
+        if let Some(parts) = &self.parts {
+            // sum all except parent
+            parts
+                .iter()
+                .for_each(|part| Body::update_properties_for_part(&mut properties, part));
+        } else {
+            // no parts, set to value of current body
+            Body::update_properties_for_part(&mut properties, self);
+        }
 
         properties.set_centre(&vector::div(
             &properties.get_centre(),
@@ -395,6 +400,13 @@ impl<'a> Body {
         properties
     }
 
+    fn update_position_on_part(part: &mut Body, delta: Vector, velocity: Option<Velocity>) {
+        part.position.add_xy(&delta);
+        vertices::translate(&mut part.vertices, &delta, None);
+        part.update_bounds(&part.get_vertices(), velocity.as_ref());
+    }
+
+    //MARK: Code
     fn set_position(&mut self, position: Position, update_velocity: bool) {
         let delta = vector::sub(&position, &self.position);
         if update_velocity {
@@ -405,69 +417,70 @@ impl<'a> Body {
             if let Some(ref mut position_prev) = self.position_prev {
                 position_prev.add_xy(&delta)
             } else {
-                self.position_prev = Some(Position::new_from_xy(&delta));
+                self.position_prev = Some(Position::new_from(&delta));
             }
         }
 
         let velocity = Some(self.get_velocity());
 
-        self.parts.iter_mut().for_each(|part| {
-            part.position.add_xy(&delta);
-            vertices::translate(&mut part.vertices, &delta, None);
-            part.update_bounds(&part.get_vertices(), velocity.as_ref());
-        })
+        Body::update_position_on_part(self, delta, velocity);
+        if let Some(parts) = &mut self.parts {
+            parts.iter_mut().for_each(|part| {
+                Body::update_position_on_part(part, delta, velocity);
+            });
+        }
     }
 
     fn set_parts(&mut self, parts: Vec<Body>, auto_hull: Option<bool>) {
-        let mut body_parts: Vec<Rc<Body>> = Vec::new();
+        // let mut body_parts: Vec<Rc<Body>> = Vec::new();
 
-        body_parts.push(Rc::new(&self));
-        //self.parent = self.rc().parent.clone();
-        let mut hull: Option<Vec<Vertex>> = None;
-        let mut hull_centre: Option<Vector> = None;
+        // body_parts.push(Rc::new(&self));
+        // //self.parent = self.rc().parent.clone();
+        // let mut hull: Option<Vec<Vertex>> = None;
+        // let mut hull_centre: Option<Vector> = None;
 
-        let auto_hull = auto_hull.unwrap_or(false);
-        if auto_hull {
-            let mut vertices: Vec<Vertex> = Vec::new();
-            parts.iter().for_each(|part| {
-                vertices.append(&mut part.get_vertices());
-            });
-            vertices::clockwise_sort(&mut vertices);
-            vertices::hull(&mut vertices);
-            hull = Some(vertices.clone());
-            hull_centre = Some(vertices::centre(&vertices));
-        }
+        // let auto_hull = auto_hull.unwrap_or(false);
+        // if auto_hull {
+        //     let mut vertices: Vec<Vertex> = Vec::new();
+        //     parts.iter().for_each(|part| {
+        //         vertices.append(&mut part.get_vertices());
+        //     });
+        //     vertices::clockwise_sort(&mut vertices);
+        //     vertices::hull(&mut vertices);
+        //     hull = Some(vertices.clone());
+        //     hull_centre = Some(vertices::centre(&vertices));
+        // }
 
-        parts.into_iter().for_each(|part| {
-            if part.get_id() != self.get_id() {
-                let mut part = part;
-                //part.parent = self.parent.clone();
-                body_parts.push(Rc::new(part));
-            }
-        });
-        let new_parts_len = body_parts.len();
-        self.parts = body_parts;
+        // parts.into_iter().for_each(|part| {
+        //     if part.get_id() != self.get_id() {
+        //         let mut part = part;
+        //         //part.parent = self.parent.clone();
+        //         body_parts.push(Rc::new(part));
+        //     }
+        // });
+        // let new_parts_len = body_parts.len();
+        // self.parts = body_parts;
 
-        if new_parts_len == 1 {
-            return;
-        }
+        // if new_parts_len == 1 {
+        //     return;
+        // }
 
-        if auto_hull && hull.is_some() && hull_centre.is_some() {
-            self.set_vertices(hull.unwrap());
-            vertices::translate(&mut self.vertices, &hull_centre.unwrap(), None);
-        }
+        // if auto_hull && hull.is_some() && hull_centre.is_some() {
+        //     self.set_vertices(hull.unwrap());
+        //     vertices::translate(&mut self.vertices, &hull_centre.unwrap(), None);
+        // }
 
-        let total = self.total_properties();
-        self.area = total.get_area();
-        self.position = total.get_centre();
-        self.position_prev = Some(total.get_centre());
-        self.set_mass(total.get_mass());
-        self.set_inertia(total.get_inertia());
-        self.set_position(total.get_centre(), false);
+        // let total = self.total_properties();
+        // self.area = total.get_area();
+        // self.position = total.get_centre();
+        // self.position_prev = Some(total.get_centre());
+        // self.set_mass(total.get_mass());
+        // self.set_inertia(total.get_inertia());
+        // self.set_position(total.get_centre(), false);
 
-        // ??? //self.position = parts[0].position.clone();
-        // self.vertices = parts[0].vertices.clone();
-        // self.bounds = parts[0].bounds.clone();
+        // // ??? //self.position = parts[0].position.clone();
+        // // self.vertices = parts[0].vertices.clone();
+        // // self.bounds = parts[0].bounds.clone();
     }
 }
 
@@ -568,14 +581,15 @@ mod tests {
     }
 
     #[test]
-    fn set_bounds_should_update_body_with_position_and_setting_velocity() {
+    fn set_position_should_update_body_with_position_and_setting_velocity() {
         // Arrange
         let mut body = Body::default_body();
         body.id = common::next_id();
         body.position = Position::new(2., 2.);
         body.position_prev = Some(Position::new(1., 1.));
-        body.velocity = Velocity::new(42., 42.);
         body.bounds = Some(test_bounds());
+        body.vertices = vec_vector_to_vec_vertex(test_square());
+        body.velocity = Velocity::new(42., 42.);
         let mut parts = [1., 2.]
             .iter()
             .map(|increase| {
@@ -591,10 +605,10 @@ mod tests {
                         *vertex
                     })
                     .collect_vec();
-                Rc::new(part)
+                part
             })
             .collect_vec();
-        body.parts.append(&mut parts);
+        body.parts = Some(parts);
 
         let position = Position::new(37., 37.);
         let update_velocity = true;
@@ -603,33 +617,45 @@ mod tests {
         body.set_position(position, update_velocity);
 
         // Assert
-        assert_xy(&body.position, 2., 2.);
+        assert_xy(&body.position, 37., 37.);
         assert_xy(&body.position_prev.unwrap(), 2., 2.);
         assert_xy(&body.velocity, 35., 35.);
         assert_float(body.speed, 49.49747468305833);
-        assert_bounds(&body.get_parts()[0].bounds.unwrap(), 37., 37., 74., 74.);
-        assert_xy(&body.get_parts()[0].position, 36., 36.);
-        assert_xy(&body.get_parts()[0].velocity, 42., 42.);
-        assert_xy(&body.get_parts()[0].vertices[0], 37., 37.);
-        assert_xy(&body.get_parts()[0].vertices[1], 39., 37.);
-        assert_xy(&body.get_parts()[0].vertices[2], 39., 39.);
-        assert_xy(&body.get_parts()[0].vertices[3], 37., 39.);
-        assert_bounds(&body.get_parts()[1].bounds.unwrap(), 38., 38., 75., 75.);
-        assert_xy(&body.get_parts()[1].position, 37., 37.);
+
+        assert_bounds(&body.get_parts()[0].bounds.unwrap(), 36., 36., 73., 73.);
+        assert_xy(&body.get_parts()[0].position, 37., 37.);
+        assert_xy(&body.get_parts()[0].velocity, 35., 35.);
+        assert_xy(&body.get_parts()[0].vertices[0], 36., 36.);
+        assert_xy(&body.get_parts()[0].vertices[1], 38., 36.);
+        assert_xy(&body.get_parts()[0].vertices[2], 38., 38.);
+        assert_xy(&body.get_parts()[0].vertices[3], 36., 38.);
+
+        assert_bounds(&body.get_parts()[1].bounds.unwrap(), 37., 37., 74., 74.);
+        assert_xy(&body.get_parts()[1].position, 36., 36.);
         assert_xy(&body.get_parts()[1].velocity, 42., 42.);
-        assert_xy(&body.get_parts()[1].vertices[0], 38., 38.);
-        assert_xy(&body.get_parts()[1].vertices[1], 40., 38.);
-        assert_xy(&body.get_parts()[1].vertices[2], 40., 40.);
-        assert_xy(&body.get_parts()[1].vertices[3], 38., 40.);
+        assert_xy(&body.get_parts()[1].vertices[0], 37., 37.);
+        assert_xy(&body.get_parts()[1].vertices[1], 39., 37.);
+        assert_xy(&body.get_parts()[1].vertices[2], 39., 39.);
+        assert_xy(&body.get_parts()[1].vertices[3], 37., 39.);
+
+        assert_bounds(&body.get_parts()[2].bounds.unwrap(), 38., 38., 75., 75.);
+        assert_xy(&body.get_parts()[2].position, 37., 37.);
+        assert_xy(&body.get_parts()[2].velocity, 42., 42.);
+        assert_xy(&body.get_parts()[2].vertices[0], 38., 38.);
+        assert_xy(&body.get_parts()[2].vertices[1], 40., 38.);
+        assert_xy(&body.get_parts()[2].vertices[2], 40., 40.);
+        assert_xy(&body.get_parts()[2].vertices[3], 38., 40.);
     }
 
     #[test]
-    fn set_bounds_should_update_body_with_position_without_setting_velocity() {
+    fn set_position_should_update_body_with_position_without_setting_velocity() {
         // Arrange
         let mut body = Body::default_body();
         body.id = common::next_id();
         body.position = Position::new(2., 2.);
         body.position_prev = Some(Position::new(1., 1.));
+        body.bounds = Some(test_bounds());
+        body.vertices = vec_vector_to_vec_vertex(test_square());
         body.velocity = Velocity::new(42., 42.);
         let mut parts = [1., 2.]
             .iter()
@@ -646,10 +672,10 @@ mod tests {
                         *vertex
                     })
                     .collect_vec();
-                Rc::new(part)
+                part
             })
             .collect_vec();
-        body.parts.append(&mut parts);
+        body.parts = Some(parts);
 
         let position = Position::new(37., 37.);
         let update_velocity = false;
@@ -658,24 +684,35 @@ mod tests {
         body.set_position(position, update_velocity);
 
         // Assert
-        assert_xy(&body.position, 2., 2.);
+        assert_xy(&body.position, 37., 37.);
         assert_xy(&body.position_prev.unwrap(), 36., 36.);
         assert_xy(&body.velocity, 42., 42.);
-        assert_bounds(&body.get_parts()[0].bounds.unwrap(), 37., 37., 81., 81.);
-        assert_xy(&body.get_parts()[0].position, 36., 36.);
+
+        assert_bounds(&body.get_parts()[0].bounds.unwrap(), 36., 36., 80., 80.);
+        assert_xy(&body.get_parts()[0].position, 37., 37.);
         assert_xy(&body.get_parts()[0].velocity, 42., 42.);
-        assert_xy(&body.get_parts()[0].vertices[0], 37., 37.);
-        assert_xy(&body.get_parts()[0].vertices[1], 39., 37.);
-        assert_xy(&body.get_parts()[0].vertices[2], 39., 39.);
-        assert_xy(&body.get_parts()[0].vertices[3], 37., 39.);
-        assert_bounds(&body.get_parts()[1].bounds.unwrap(), 38., 38., 82., 82.);
-        assert_xy(&body.get_parts()[1].position, 37., 37.);
+        assert_xy(&body.get_parts()[0].vertices[0], 36., 36.);
+        assert_xy(&body.get_parts()[0].vertices[1], 38., 36.);
+        assert_xy(&body.get_parts()[0].vertices[2], 38., 38.);
+        assert_xy(&body.get_parts()[0].vertices[3], 36., 38.);
+
+        assert_bounds(&body.get_parts()[1].bounds.unwrap(), 37., 37., 81., 81.);
+        assert_xy(&body.get_parts()[1].position, 36., 36.);
         assert_xy(&body.get_parts()[1].velocity, 42., 42.);
-        assert_xy(&body.get_parts()[1].vertices[0], 38., 38.);
-        assert_xy(&body.get_parts()[1].vertices[1], 40., 38.);
-        assert_xy(&body.get_parts()[1].vertices[2], 40., 40.);
-        assert_xy(&body.get_parts()[1].vertices[3], 38., 40.);
+        assert_xy(&body.get_parts()[1].vertices[0], 37., 37.);
+        assert_xy(&body.get_parts()[1].vertices[1], 39., 37.);
+        assert_xy(&body.get_parts()[1].vertices[2], 39., 39.);
+        assert_xy(&body.get_parts()[1].vertices[3], 37., 39.);
+
+        assert_bounds(&body.get_parts()[2].bounds.unwrap(), 38., 38., 82., 82.);
+        assert_xy(&body.get_parts()[2].position, 37., 37.);
+        assert_xy(&body.get_parts()[2].velocity, 42., 42.);
+        assert_xy(&body.get_parts()[2].vertices[0], 38., 38.);
+        assert_xy(&body.get_parts()[2].vertices[1], 40., 38.);
+        assert_xy(&body.get_parts()[2].vertices[2], 40., 40.);
+        assert_xy(&body.get_parts()[2].vertices[3], 38., 40.);
     }
+    //#endregion
 
     #[test]
     fn total_properties_should_sum_the_properties_of_all_compound_parts_of_the_given_body() {
@@ -685,7 +722,7 @@ mod tests {
         body.mass = 1.6;
         body.area = 1600.;
         body.inertia = 1706.6666666666667;
-        let mut parts = [1., 2., 3., 4., 5.]
+        let mut parts = [2., 3., 4., 5.] // different from Javascript since parent is not included in Rust
             .iter()
             .map(|increase| {
                 let mut part = body.clone();
@@ -693,11 +730,13 @@ mod tests {
                 part.mass += increase;
                 part.area += increase;
                 part.inertia += increase;
+
+                part.angle = *increase;
                 part.position = Position::new(*increase, *increase);
-                Rc::new(part)
+                part
             })
             .collect_vec();
-        body.parts.append(&mut parts);
+        body.parts = Some(parts);
 
         // Act
         let result = body.total_properties();

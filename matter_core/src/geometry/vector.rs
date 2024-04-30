@@ -1,4 +1,4 @@
-use crate::core::xy::XY;
+use crate::core::xy::{XYNew, XY};
 
 #[derive(Clone, Copy)]
 pub struct Vector {
@@ -24,8 +24,10 @@ impl XY for Vector {
     }
 }
 
-impl Vector {
-    pub fn new(x: f64, y: f64) -> Self {
+impl XYNew for Vector {
+    type XY = Vector;
+
+    fn new(x: f64, y: f64) -> Self {
         Vector { x: x, y: y }
     }
 }

@@ -1,4 +1,4 @@
-use super::xy::XY;
+use super::xy::{XYNew, XY};
 
 #[derive(Clone, Copy, Default)]
 pub struct Force {
@@ -24,8 +24,10 @@ impl XY for Force {
     }
 }
 
-impl Force {
-    pub fn new(x: f64, y: f64) -> Self {
+impl XYNew for Force {
+    type XY = Force;
+
+    fn new(x: f64, y: f64) -> Self {
         Force { x: x, y: y }
     }
 }
