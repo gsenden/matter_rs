@@ -1,84 +1,18 @@
-use std::{
-    borrow::Borrow,
-    cell::Ref,
-    mem,
-    ops::Deref,
-    rc::{Rc, Weak},
-};
-
+use std::{cell::RefCell, rc::{Rc, Weak}};
+use uuid::Uuid;
+use super::{body_option::BodyOption, body_properties::BodyProperties};
 use crate::{
     core::{
-        collision_filter::CollisionFilter,
-        common::{self, ShapeType},
-        constraint_impulse::ConstraintImpulse,
-        force::Force,
-        position::{self, Position},
-        render::Render,
-        sprite::Sprite,
-        velocity::{self, Velocity},
-        xy::{XYNew, XY},
+        collision_filter::CollisionFilter, common::{self, ShapeType}, constraint_impulse::ConstraintImpulse, force::Force, position::Position, render::Render, sprite::Sprite, velocity::Velocity, xy::XYNew
     },
     geometry::{
-        axes,
-        bounds::{self, Bounds},
-        vector::{self, Vector},
+        bounds::Bounds,
+        vector::Vector,
         vertices::{self, Vertex},
     },
 };
-use itertools::Itertools;
-use uuid::Uuid;
 
-use super::{body_option::BodyOption, body_properties::BodyProperties};
 
-#[derive(Clone)]
-pub struct Body {
-    id: Uuid,
-    shape_type: ShapeType,
-    //plugin: Option<?>,
-    angle: f64,
-    parts: Option<Vec<Body>>,
-    vertices: Vec<Vertex>,
-    position: Position,
-    force: Force,
-    torque: f64,
-    position_impulse: Position,
-    constraint_impulse: ConstraintImpulse,
-    total_contacts: u32,
-    speed: f64,
-    angular_speed: f64,
-    velocity: Velocity,
-    angular_velocity: f64,
-    is_sensor: bool,
-    is_static: bool,
-    is_sleeping: bool,
-    motion: f64,
-    sleep_threshold: u32,
-    density: f64,
-    resitution: f64,
-    friction: f64,
-    friction_static: f64,
-    friction_air: f64,
-    collision_filter: CollisionFilter,
-    slop: f64,
-
-    time_scale: u16,
-    render: Render,
-    //events: Option<?>,
-    bounds: Option<Bounds>,
-    chamfer: Option<Vec<Vector>>,
-    circle_radius: f64,
-    position_prev: Option<Position>,
-    angle_prev: f64,
-    parent: Option<Weak<Body>>,
-    axes: Option<Vec<Vertex>>,
-    area: f64,
-    mass: f64,
-    inverse_mass: f64,
-    inertia: f64,
-    inverse_inertia: f64,
-    delta_time: f64,
-    _original: Option<Box<Body>>,
-}
 const INERTIA_SCALE: f64 = 4.;
 const NEXT_COLLIDING_GROUP_ID: i32 = 1;
 const NEXT_NON_COLLIDING_GROUP_ID: i32 = -1;
@@ -86,65 +20,256 @@ const NEXT_CATEGORY: u16 = 1;
 const BASE_DELTA: f64 = 1000. / 60.;
 const TIME_CORRECTION: bool = true;
 
-impl<'a> Body {
-    pub fn new(options: Option<Vec<BodyOption>>) -> Self {
-        Self::default_body()
-    }
+#[derive(Clone)]
+pub struct Body {
+    content: Rc<RefCell<BodyContent>>,
+    parent: Weak<RefCell<BodyContent>>,
+}
 
-    fn default_body() -> Self {
-        let id = common::next_id();
-        let mut body = Body {
-            id: id,
-            shape_type: ShapeType::Body,
-            parts: None,
-            //plugin??
+//let this = self.content.as_ref().borrow();
+
+
+
+#[derive(Clone)]
+pub struct BodyContent {
+    angle_prev: f64,
+    angle: f64,
+    angular_speed: f64,
+    angular_velocity: f64,
+    area: f64,
+    axes: Option<Vec<Vertex>>,
+    bounds: Option<Bounds>,
+    chamfer: Option<Vec<Vector>>,
+    circle_radius: f64,
+    collision_filter: CollisionFilter,
+    constraint_impulse: ConstraintImpulse,
+    delta_time: f64,
+    density: f64,
+    //events: Option<?>,
+    force: Force,
+    friction_air: f64,
+    friction_static: f64,
+    friction: f64,
+    id: Uuid,
+    inertia: f64,
+    inverse_inertia: f64,
+    inverse_mass: f64,
+    is_sensor: bool,
+    is_sleeping: bool,
+    is_static: bool,
+    mass: f64,
+    motion: f64,
+    parts: Option<Vec<Body>>,
+    //plugin: Option<?>,
+    position_impulse: Position,
+    position_prev: Option<Position>,
+    position: Position,
+    render: Render,
+    resitution: f64,
+    shape_type: ShapeType,
+    sleep_threshold: u32,
+    slop: f64,
+    speed: f64,
+    time_scale: u16,
+    torque: f64,
+    total_contacts: u32,
+    velocity: Velocity,
+    vertices: Vec<Vertex>,
+    _original: Option<Box<Body>>,
+}
+
+impl BodyContent {
+    fn default_contant() -> Self {
+        BodyContent {
+            angle_prev: 0.,
             angle: 0.,
-            vertices: vertices::from_path("L 0 0 L 40 0 L 40 40 L 0 40", id).unwrap(),
-            position: Position::new(0., 0.),
-            force: Force::new(0., 0.),
-            torque: 0.,
-            position_impulse: Position::new(0., 0.),
-            constraint_impulse: ConstraintImpulse::new(0., 0., 0.),
-            total_contacts: 0,
-            speed: 0.,
             angular_speed: 0.,
-            velocity: Velocity::new(0., 0.),
             angular_velocity: 0.,
-            is_sensor: false,
-            is_static: false,
-            is_sleeping: false,
-            motion: 0.,
-            sleep_threshold: 60,
-            density: 0.001,
-            resitution: 0.,
-            friction: 0.1,
-            friction_static: 0.5,
-            friction_air: 0.01,
-            collision_filter: CollisionFilter::new(1, u32::MAX, 0),
-            slop: 0.05,
-            time_scale: 1,
-            render: Render::new(true, 1., Sprite::new(1., 1., 0., 0.)),
+            area: 0.,
+            axes: None,
             bounds: None,
             chamfer: None,
             circle_radius: 0.,
-            position_prev: None,
-            angle_prev: 0.,
-            parent: None,
-            axes: None,
-            area: 0.,
-            mass: 0.,
-            inverse_mass: 0.,
+            collision_filter: CollisionFilter::new(1, u32::MAX, 0),
+            constraint_impulse: ConstraintImpulse::new(0., 0., 0.),
+            delta_time: 1000. / 60.,
+            density: 0.001,
+            force: Force::new(0., 0.),
+            friction_air: 0.01,
+            friction_static: 0.5,
+            friction: 0.1,
+            id: common::next_id(),
             inertia: 0.,
             inverse_inertia: 0.,
-            delta_time: 1000. / 60.,
+            inverse_mass: 0.,
+            is_sensor: false,
+            is_sleeping: false,
+            is_static: false,
+            mass: 0.,
+            motion: 0.,
+            parts: None,
+            //plugin??
+            position_impulse: Position::new(0., 0.),
+            position_prev: None,
+            position: Position::new(0., 0.),
+            render: Render::new(true, 1., Sprite::new(1., 1., 0., 0.)),
+            resitution: 0.,
+            shape_type: ShapeType::Body,
+            sleep_threshold: 60,
+            slop: 0.05,
+            speed: 0.,
+            time_scale: 1,
+            torque: 0.,
+            total_contacts: 0,
+            velocity: Velocity::new(0., 0.),
+            vertices: vertices::from_path("L 0 0 L 40 0 L 40 40 L 0 40", None).unwrap(),
             _original: None,
-        };
+        }
+    }
+}
+
+macro_rules! this{
+    ($a:expr) => {
+        $a.content.as_ref().borrow()
+    };
+}
+
+macro_rules! this_mut{
+    ($a:expr) => {
+        $a.content.as_ref().borrow_mut()
+    };
+}
+
+impl Body {
+    
+
+    pub fn default_body() -> Self {
+        let content = BodyContent::default_contant();
+        let mut body = Body { content: Rc::new(RefCell::new(content)), parent: Weak::new()};
+        vertices::set_body(&mut body.content.as_ref().borrow_mut().vertices, &body);
         body
     }
 
-    pub fn get_id(&self) -> Uuid {
-        self.id
+
+    // pub fn new(options: Vec<BodyOption>) -> Self {
+    //     let content = BodyContent { x: x, parts: None };
+    //     Body { content: Rc::new(RefCell::new(content)), parent: Weak::new() }
+    // }
+
+    pub fn clone(&self) -> Body {
+        Body { content: self.content.clone(), parent: self.parent.clone() }
     }
+
+    pub fn set_parent(&mut self, parent: &Body) {
+        self.parent = Rc::downgrade(&parent.content);
+    }
+
+    pub fn get_parent(&self) -> Option<Body> {
+        if let Some(content) = self.parent.upgrade() {
+            Some(Body { content, parent: Weak::new() })
+        } else {
+            None
+        }
+    }
+
+    pub fn get_id(&self) -> Uuid {
+        this!(self).id
+    }
+
+    pub fn get_inertia(&self) -> f64 {
+        this!(self).inertia
+    }
+
+    pub fn get_inverse_inertia(&self) -> f64 {
+        this!(self).inverse_inertia
+    }
+
+    pub fn get_mass(&self) -> f64 {
+        this!(self).mass
+    }
+
+    pub fn get_inverse_mass(&self) -> f64 {
+        this!(self).inverse_mass
+    }
+
+    pub fn get_density(&self) -> f64 {
+        this!(self).density
+    }
+
+    pub fn get_area(&self) -> f64 {
+        this!(self).area
+    }
+
+    // pub fn get_axes(&self) -> Option<Rc<Vec<Vertex>>> {
+    //     match this!(self).axes {
+    //         Some(axes) => {
+    //             Rc::n
+    //         },
+    //         None => None,
+    //     }
+    // }
+
+
+
+
+    pub fn set_parts(&mut self, parts: Vec<Body>) {
+        this_mut!(self).parts = Some(parts);
+    }
+
+    pub fn get_parts(&self) -> Vec<Body> {
+        let mut parts = vec![self.clone()];
+        if let Some(my_parts) = &this!(self).parts {
+            for part in my_parts.iter() {
+                parts.push(part.clone());
+            }
+        }
+        parts
+    }
+
+    pub fn set_inertia(&mut self, inertia: f64) {
+        let mut this = this_mut!(self);
+        this.inertia = inertia;
+        this.inverse_inertia = 1. / this.inertia;
+    }
+
+    fn get_moment(&self) -> f64 {
+        let this = this!(self);
+        this.inertia / (this.mass / 6.)
+    }
+
+    pub fn set_mass(&mut self, mass: f64) {
+        let moment = self.get_moment();
+        self.set_inertia(moment * (mass / 6.));
+
+        let mut content= this_mut!(self);
+        content.mass = mass;
+        content.inverse_mass = 1. / content.mass;
+        content.density = content.mass / content.area;
+    }
+
+    // pub fn update_bounds(&mut self, vertices: &Vec<Vertex>, velocity: Option<&Velocity>) {
+    //     let mut this = self.content.as_ref().borrow_mut();
+    //     if let Some(mut bounds) = &this.bounds {
+    //         bounds::update(&mut bounds, &vertices, velocity);
+    //     }
+        
+    //     // if self.bounds.is_some() {
+    //     //     let mut bounds = self.bounds.unwrap();
+    //     //     bounds::update(&mut bounds, &vertices, velocity);
+    //     //     self.bounds = Some(bounds);
+    //     // }
+    // }
+
+    
+
+    
+
+}
+
+
+
+/*
+
 
     pub fn get_shape_type(&self) -> ShapeType {
         self.shape_type
@@ -227,9 +352,7 @@ impl<'a> Body {
         self.sleep_threshold
     }
 
-    pub fn get_density(&self) -> f64 {
-        self.density
-    }
+   
 
     pub fn get_resitution(&self) -> f64 {
         self.resitution
@@ -287,54 +410,18 @@ impl<'a> Body {
         self.angle_prev
     }
 
-    pub fn get_axes(&self) -> Option<Vec<Vertex>> {
-        self.axes.clone()
-    }
+    
+    
 
-    pub fn get_area(&self) -> f64 {
-        self.area
-    }
+    
 
-    pub fn get_mass(&self) -> f64 {
-        self.mass
-    }
-
-    pub fn get_inverse_mass(&self) -> f64 {
-        self.inverse_mass
-    }
-
-    pub fn get_inertia(&self) -> f64 {
-        self.inertia
-    }
-
-    pub fn get_inverse_inertia(&self) -> f64 {
-        self.inverse_inertia
-    }
+    
 
     pub fn get_delta_time(&self) -> f64 {
         self.delta_time
     }
 
-    pub fn update_bounds(&mut self, vertices: &Vec<Vertex>, velocity: Option<&Velocity>) {
-        if self.bounds.is_some() {
-            let mut bounds = self.bounds.unwrap();
-            bounds::update(&mut bounds, &vertices, velocity);
-            self.bounds = Some(bounds);
-        }
-    }
-
-    pub fn set_inertia(&mut self, inertia: f64) {
-        self.inertia = inertia;
-        self.inverse_inertia = 1. / self.inertia;
-    }
-
-    pub fn set_mass(&mut self, mass: f64) {
-        let moment = self.inertia / (self.mass / 6.);
-        self.set_inertia(moment * (mass / 6.));
-        self.mass = mass;
-        self.inverse_mass = 1. / self.mass;
-        self.density = self.mass / self.area;
-    }
+    
 
     pub fn set_vertices(&mut self, vertices: Vec<Vertex>) {
         let mut vertices = vertices;
@@ -406,7 +493,6 @@ impl<'a> Body {
         part.update_bounds(&part.get_vertices(), velocity.as_ref());
     }
 
-    //MARK: Code
     fn set_position(&mut self, position: Position, update_velocity: bool) {
         let delta = vector::sub(&position, &self.position);
         if update_velocity {
@@ -483,11 +569,13 @@ impl<'a> Body {
         // // self.bounds = parts[0].bounds.clone();
     }
 }
+*/
+
+//MARK: Tests
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
     use crate::{
         core::position::{self, Position},
         geometry::bounds::BoundsPart,
@@ -501,6 +589,92 @@ mod tests {
         },
     };
 
+    #[test]
+    fn set_vertices_should_mutate_the_body_to_contain_valid_values() {
+        // // Arrange
+        // let vertices = vec_vector_to_vec_vertex(test_square());
+
+        // let mut content = BodyContent::default_contant();
+        // content.id = common::next_id();
+        // content.inertia = 1706.6666666666667;
+        // content.inverse_inertia = 0.0005859375;
+        // content.mass = 1.6;
+        // content.inverse_mass = 0.625;
+        // content.density = 0.001;
+        // content.area = 1600.;
+        // content.position = Position::new(2., 2.);
+        // content.bounds = Some(Bounds {
+        //     max: BoundsPart { x: 20.0, y: 20.0 },
+        //     min: BoundsPart { x: -20.0, y: -20.0 },
+        // });
+        // content.velocity = Velocity::new(0., 0.);
+        // let mut body = Body { content: Rc::new(RefCell::new(content)), parent: Weak::new() };
+
+        // // Act
+        // body.set_vertices(vertices);
+
+        // // Assert
+        // assert_float(body.get_area(), 4.0);
+        // assert_xy(&body.get_axes().unwrap()[0], 0.0, 1.0);
+        // assert_xy(&body.get_axes().unwrap()[1], -1.0, 0.0);
+        // assert_bounds(&body.get_bounds().unwrap(), 1.0, 1.0, 3.0, 3.0);
+        // assert_float(body.density, 0.001);
+        // assert_float(body.inertia, 0.010666666666666666);
+        // assert_float(body.inverse_inertia, 93.75);
+        // assert_float(body.inverse_mass, 250.0);
+        // assert_float(body.mass, 0.004);
+        // assert_position(&body.position, 2.0, 2.0);
+        // assert_velocity(&body.velocity, 0.0, 0.0);
+        // assert_vertex(&body.vertices[0], body.id, 1.0, 1.0, 0, false);
+        // assert_vertex(&body.vertices[1], body.id, 3.0, 1.0, 1, false);
+        // assert_vertex(&body.vertices[2], body.id, 3.0, 3.0, 2, false);
+        // assert_vertex(&body.vertices[3], body.id, 1.0, 3.0, 3, false);
+    }
+
+
+
+    #[test]
+    fn set_mass_should_mutate_value_of_mass_inverse_mass_inertia_inverse_inertia_and_density_to_valid_values(
+    ) {
+        // Arrange 
+        let mut content = BodyContent::default_contant();
+        content.inertia = 1706.6666666666667;
+        content.inverse_inertia = 0.0005859375;
+        content.mass = 1.6;
+        content.inverse_mass = 0.625;
+        content.density = 0.001;
+        content.area = 1600.;
+        let mut body = Body { content: Rc::new(RefCell::new(content)), parent: Weak::new() };
+
+        let mass = 42.1;
+
+        // Act
+        body.set_mass(mass);
+
+        // Assert
+        assert_float(body.get_mass(), 42.1);
+        assert_float(body.get_inverse_mass(), 0.023752969121140142);
+        assert_float(body.get_inertia(), 44906.666666666664);
+        assert_float(body.get_inverse_inertia(), 0.000022268408551068885);
+        assert_float(body.get_density(), 0.026312500000000003);
+    }
+
+    #[test]
+    fn set_inertia_should_mutate_value_of_inertia_and_inverse_inertia_to_valid_values() {
+        // Arrange
+        let mut body = Body::default_body();
+        let inertia = 12.;
+
+        // Act
+        body.set_inertia(inertia);
+
+        // Assert
+        assert_float(body.get_inertia(), 12.);
+        assert_float(body.get_inverse_inertia(), 0.08333333333333333);
+    }
+
+}
+/*
     #[test]
     fn set_parts_should_update_body_with_parts_without_setting_autohull() {
         // Arrange
@@ -748,83 +922,8 @@ mod tests {
         assert_float(result.get_mass(), 20.4);
     }
 
-    #[test]
-    fn set_vertices_should_mutate_the_body_to_contain_valid_values() {
-        // Arrange
-        let vertices = vec_vector_to_vec_vertex(test_square());
+    
 
-        let mut body = Body::default_body();
-        body.id = common::next_id();
-        body.inertia = 1706.6666666666667;
-        body.inverse_inertia = 0.0005859375;
-        body.mass = 1.6;
-        body.inverse_mass = 0.625;
-        body.density = 0.001;
-        body.area = 1600.;
-        body.position = Position::new(2., 2.);
-        body.bounds = Some(Bounds {
-            max: BoundsPart { x: 20.0, y: 20.0 },
-            min: BoundsPart { x: -20.0, y: -20.0 },
-        });
-        body.velocity = Velocity::new(0., 0.);
-
-        // Act
-        body.set_vertices(vertices);
-
-        // Assert
-        assert_float(body.area, 4.0);
-        assert_xy(&body.get_axes().unwrap()[0], 0.0, 1.0);
-        assert_xy(&body.get_axes().unwrap()[1], -1.0, 0.0);
-        assert_bounds(&body.get_bounds().unwrap(), 1.0, 1.0, 3.0, 3.0);
-        assert_float(body.density, 0.001);
-        assert_float(body.inertia, 0.010666666666666666);
-        assert_float(body.inverse_inertia, 93.75);
-        assert_float(body.inverse_mass, 250.0);
-        assert_float(body.mass, 0.004);
-        assert_position(&body.position, 2.0, 2.0);
-        assert_velocity(&body.velocity, 0.0, 0.0);
-        assert_vertex(&body.vertices[0], body.id, 1.0, 1.0, 0, false);
-        assert_vertex(&body.vertices[1], body.id, 3.0, 1.0, 1, false);
-        assert_vertex(&body.vertices[2], body.id, 3.0, 3.0, 2, false);
-        assert_vertex(&body.vertices[3], body.id, 1.0, 3.0, 3, false);
-    }
-
-    #[test]
-    fn set_mass_should_mutate_value_of_mass_inverse_mass_inertia_inverse_inertia_and_density_to_valid_values(
-    ) {
-        // Arrange
-        let mut body = Body::default_body();
-        body.inertia = 1706.6666666666667;
-        body.inverse_inertia = 0.0005859375;
-        body.mass = 1.6;
-        body.inverse_mass = 0.625;
-        body.density = 0.001;
-        body.area = 1600.;
-
-        let mass = 42.1;
-
-        // Act
-        body.set_mass(mass);
-
-        // Assert
-        assert_float(body.mass, 42.1);
-        assert_float(body.inverse_mass, 0.023752969121140142);
-        assert_float(body.inertia, 44906.666666666664);
-        assert_float(body.inverse_inertia, 0.000022268408551068885);
-        assert_float(body.density, 0.026312500000000003);
-    }
-
-    #[test]
-    fn set_inertia_should_mutate_value_of_inertia_and_inverse_inertia_to_valid_values() {
-        // Arrange
-        let mut body = Body::default_body();
-        let inertia = 12.;
-
-        // Act
-        body.set_inertia(inertia);
-
-        // Assert
-        assert_float(body.inertia, 12.);
-        assert_float(body.inverse_inertia, 0.08333333333333333);
-    }
+    
 }
+*/

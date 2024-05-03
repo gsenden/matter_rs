@@ -3,15 +3,16 @@ use std::cmp::Ordering;
 use std::vec;
 use uuid::Uuid;
 
+use crate::body_mod::body::Body;
 use crate::core::xy::XY;
 
 use super::super::core::common;
 use super::vector::{self, Vector};
 use regex::Regex;
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct Vertex {
-    body_id: Uuid,
+    body: Option<Body>,
     x: f64,
     y: f64,
     index: usize,
@@ -37,13 +38,13 @@ impl XY for Vertex {
 }
 
 impl Vertex {
-    pub fn from_vector(body_id: Uuid, vector: &Vector, index: usize, is_internal: bool) -> Self {
-        Vertex::new(body_id, vector.get_x(), vector.get_y(), index, is_internal)
+    pub fn from_vector(body: Option<Body>, vector: &Vector, index: usize, is_internal: bool) -> Self {
+        Vertex::new(body, vector.get_x(), vector.get_y(), index, is_internal)
     }
 
-    pub fn new(body_id: Uuid, x: f64, y: f64, index: usize, is_internal: bool) -> Self {
+    pub fn new(body: Option<Body>, x: f64, y: f64, index: usize, is_internal: bool) -> Self {
         Vertex {
-            body_id: body_id,
+            body: body,
             x: x,
             y: y,
             index: index,
@@ -51,12 +52,12 @@ impl Vertex {
         }
     }
 
-    pub fn get_body_id(&self) -> Uuid {
-        self.body_id
+    pub fn get_body(&self) -> Option<Body> {
+        self.body.clone()
     }
 
-    pub fn set_body_id(&mut self, body_id: Uuid) {
-        self.body_id = body_id;
+    pub fn set_body(&mut self, body: Body) {
+        self.body = Some(body);
     }
 
     pub fn get_index(&self) -> usize {
@@ -72,10 +73,10 @@ impl Vertex {
     }
 }
 
-pub fn create(points: Vec<Vector>, body_id: Uuid) -> Vec<Vertex> {
+pub fn create(points: Vec<Vector>, body: Option<Body>) -> Vec<Vertex> {
     let mut vertices: Vec<Vertex> = Vec::new();
     for (index, vector) in points.iter().enumerate() {
-        vertices.push(Vertex::from_vector(body_id, vector, index, false));
+        vertices.push(Vertex::from_vector(body.clone(), vector, index, false));
     }
     vertices
 }
@@ -86,7 +87,13 @@ pub enum FromPathError {
     ParseFloatError(String),
 }
 
-pub fn from_path(path: &str, body_id: Uuid) -> Result<Vec<Vertex>, FromPathError> {
+pub fn set_body(vertices: &mut Vec<Vertex>, body: &Body) {
+    for vertex in vertices.iter_mut() {
+        vertex.body = Some(body.clone());
+    }
+}
+
+pub fn from_path(path: &str, body: Option<Body>) -> Result<Vec<Vertex>, FromPathError> {
     let regex = match Regex::new(r"([\d.e]+)[\s,]*([-\d.e]+)") {
         Ok(reg) => reg,
         Err(error) => {
@@ -119,7 +126,7 @@ pub fn from_path(path: &str, body_id: Uuid) -> Result<Vec<Vertex>, FromPathError
                 }
             };
             index += 1;
-            Ok(Vertex::new(body_id, x, y, index - 1, false))
+            Ok(Vertex::new(body.clone(), x, y, index - 1, false))
         })
         .collect();
 
@@ -175,7 +182,7 @@ pub fn innertia(vertices: &Vec<Vertex>, mass: f64) -> f64 {
 
     for (index, vertex) in vertices.iter().enumerate() {
         let index2 = (index + 1) % vertices.len();
-        let vertex2 = vertices[index2];
+        let vertex2 = vertices[index2].clone();
         let cross = f64::abs(vector::cross(&vertex2, vertex));
         numerator += cross
             * (vector::dot(&vertex2, &vertex2)
@@ -299,7 +306,7 @@ pub fn chamfer(
                 &scaled_vertex,
             );
             new_vertices.push(Vertex::from_vector(
-                vertex.body_id,
+                vertex.body.clone(),
                 &vector,
                 index,
                 vertex.is_internal,
@@ -435,7 +442,7 @@ mod tests {
         let point_b = vector::create(0.0, 0.0);
         let point_c = vector::create(0.0, 0.0);
         let points = vec![point_a, point_b, point_c];
-        let vertices = create(points, Uuid::new_v4());
+        let vertices = create(points, None);
 
         // Act
         let result = is_convex(&vertices);
@@ -450,7 +457,7 @@ mod tests {
         let point_a = vector::create(0.0, 1.0);
         let point_b = vector::create(1.0, 1.0);
         let points = vec![point_a, point_b];
-        let vertices = create(points, Uuid::new_v4());
+        let vertices = create(points, None);
 
         // Act
         let result = is_convex(&vertices);
@@ -463,7 +470,7 @@ mod tests {
     fn is_convex_should_return_false_for_non_convex_vertices() {
         //Arrange
         let points = test_shape_non_convex();
-        let vertices = create(points, Uuid::new_v4());
+        let vertices = create(points, None);
 
         // Act
         let result = is_convex(&vertices);
@@ -476,7 +483,7 @@ mod tests {
     fn is_convex_should_return_true_for_convex_vertices() {
         //Arrange
         let points = test_shape_convex();
-        let vertices = create(points, Uuid::new_v4());
+        let vertices = create(points, None);
 
         // Act
         let result = is_convex(&vertices);
@@ -489,7 +496,7 @@ mod tests {
     fn hull_should_mutate_the_vertices_to_a_valid_vec() {
         //Arrange
         let points = test_square_with_decimals();
-        let mut vertices = create(points, Uuid::new_v4());
+        let mut vertices = create(points, None);
 
         // Act
         hull(&mut vertices);
@@ -511,7 +518,7 @@ mod tests {
 
         let points = vec![point_a, point_b, point_c, point_d];
 
-        let mut vertices = create(points, Uuid::new_v4());
+        let mut vertices = create(points, None);
 
         // Act
         clockwise_sort(&mut vertices);
@@ -528,7 +535,7 @@ mod tests {
     fn chamfer_should_create_valid_vertices_when_using_default_parameters() {
         //Arrange
         let points = test_square_with_decimals();
-        let vertices = create(points, Uuid::new_v4());
+        let vertices = create(points, None);
         let radius = None;
         let quality = None;
         let quality_min = None;
@@ -561,7 +568,7 @@ mod tests {
     fn chamfer_should_create_valid_vertices_when_not_using_default_parameters() {
         //Arrange
         let points = test_square_with_decimals();
-        let vertices = create(points, Uuid::new_v4());
+        let vertices = create(points, None);
         let radius = Some(vec![2.0_f64, 3.0_f64, 4.0_f64, 5.0_f64]);
         let quality = Some(-3.0_f64);
         let quality_min = Some(8.0_f64);
@@ -609,7 +616,7 @@ mod tests {
     fn scale_should_mutate_the_vertices_to_valid_values() {
         //Arrange
         let points = test_square_with_decimals();
-        let mut vertices = create(points, Uuid::new_v4());
+        let mut vertices = create(points, None);
         let scale_x = 5.0_f64;
         let scale_y = 8.0_f64;
         let point = vector::create(0.0, 0.0);
@@ -628,7 +635,7 @@ mod tests {
     fn contains_should_respond_false_when_the_vector_is_outside() {
         // Arrange
         let points = test_square_with_decimals();
-        let vertices = create(points, Uuid::new_v4());
+        let vertices = create(points, None);
 
         let vector = vector::create(-1.0, 0.0);
 
@@ -643,7 +650,7 @@ mod tests {
     fn contains_should_respond_true_when_the_vector_is_on_the_edge() {
         // Arrange
         let points = test_square_with_decimals();
-        let vertices = create(points, Uuid::new_v4());
+        let vertices = create(points, None);
 
         let vector = vector::create(0.0, 0.0);
 
@@ -658,7 +665,7 @@ mod tests {
     fn contains_should_respond_true_when_the_vector_is_in_the_middle() {
         // Arrange
         let points = test_square_with_decimals();
-        let vertices = create(points, Uuid::new_v4());
+        let vertices = create(points, None);
 
         let vector = vector::create(20.5, 20.5);
 
@@ -673,7 +680,7 @@ mod tests {
     fn translate_should_mutate_vertices_in_a_valid_way() {
         // Arrange
         let points = test_square_with_decimals();
-        let mut vertices = create(points, Uuid::new_v4());
+        let mut vertices = create(points, None);
 
         let vector = vector::create(5.0, 6.0);
         let scalar = Some(3.0_f64);
@@ -758,7 +765,7 @@ mod tests {
         let path = "1 2 L 3, 4 L 5 6";
 
         // Act
-        let result = from_path(path, Uuid::new_v4()).unwrap();
+        let result = from_path(path, None).unwrap();
 
         // Assert
         assert_xy(&result[0], 1.0, 2.0);
@@ -777,7 +784,7 @@ mod tests {
         let vector_list = vec![vector_a, vector_b, vector_c];
 
         // Act
-        let result = create(vector_list, Uuid::new_v4());
+        let result = create(vector_list, None);
 
         // Assert
         assert_xy(&result[0], 1.0, 2.0);

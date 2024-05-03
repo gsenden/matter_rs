@@ -248,7 +248,7 @@ mod tests {
     #[test]
     fn create_should_create_a_valid_bounds_from_vertices() {
         let points = test_square_with_decimals();
-        let vertices = vertices::create(points, Uuid::new_v4());
+        let vertices = vertices::create(points, None);
 
         // Act
         let result = create(Some(&vertices));
@@ -260,7 +260,7 @@ mod tests {
     #[test]
     fn update_should_mutate_bounds_with_vertices_without_velocity() {
         let points = test_square_with_decimals();
-        let vertices = vertices::create(points, Uuid::new_v4());
+        let vertices = vertices::create(points, None);
         let mut bounds = test_bounds();
 
         // Act
@@ -273,7 +273,7 @@ mod tests {
     #[test]
     fn update_should_mutate_bounds_with_vertices_and_velocity() {
         let points = test_square_with_decimals();
-        let vertices = vertices::create(points, Uuid::new_v4());
+        let vertices = vertices::create(points, None);
         let velocity = Velocity::new(5., 6.);
         let mut bounds = test_bounds();
 

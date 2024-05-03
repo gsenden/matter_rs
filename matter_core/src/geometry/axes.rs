@@ -19,7 +19,7 @@ pub fn from_vertices(vertices: &Vec<Vertex>) -> Vec<Vertex> {
             vertices[index].get_x() - vertices[next_index].get_x(),
         ));
         let normal = Vertex::from_vector(
-            vertices[index].get_body_id(),
+            vertices[index].get_body(),
             &normal,
             index,
             vertices[index].get_is_internal(),
@@ -70,7 +70,7 @@ mod tests {
     fn rotate_should_mutate_the_vertices_in_valid_way() {
         //Arrange
         let points = test_square();
-        let vertices = vertices::create(points, Uuid::new_v4());
+        let vertices = vertices::create(points, None);
         let mut axes = from_vertices(&vertices);
         let angle = 90.0_f64;
 
@@ -86,7 +86,7 @@ mod tests {
     fn from_vertices_should_return_valid_vectors_as_axes() {
         //Arrange
         let points = test_square();
-        let vertices = vertices::create(points, Uuid::new_v4());
+        let vertices = vertices::create(points, None);
 
         // Act
         let result = from_vertices(&vertices);

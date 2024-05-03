@@ -1,12 +1,11 @@
 use uuid::Uuid;
 
 use crate::{
-    core::xy::XY,
-    geometry::{
+    body_mod::body::Body, core::xy::XY, geometry::{
         bounds::{Bounds, BoundsPart},
         vector,
         vertices::Vertex,
-    },
+    }
 };
 
 #[cfg(test)]
@@ -20,13 +19,17 @@ pub fn assert_xy(result: &impl XY, expected_x: f64, expected_y: f64) {
 
 pub fn assert_vertex(
     result: &Vertex,
-    expected_id: Uuid,
+    expected_body: Option<Body>,
     expected_x: f64,
     expected_y: f64,
     expected_index: usize,
     expected_is_internal: bool,
 ) {
-    assert_eq!(result.get_body_id(), expected_id);
+    match expected_body {
+        Some(body) => assert_eq!(body.get_id(),result.get_body().unwrap().get_id()),
+        None => assert_eq!(result.get_body().is_none(), true),
+    }
+
     assert_float(result.get_x(), expected_x);
     assert_float(result.get_y(), expected_y);
     assert_eq!(result.get_index(), expected_index);
@@ -46,7 +49,7 @@ pub fn vec_vector_to_vec_vertex(vectors: Vec<Vector>) -> Vec<Vertex> {
         .iter()
         .map(|vector| {
             index += 1;
-            Vertex::from_vector(Uuid::new_v4(), vector, index - 1, false)
+            Vertex::from_vector(None, vector, index - 1, false)
         })
         .collect()
 }
