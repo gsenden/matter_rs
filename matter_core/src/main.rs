@@ -87,6 +87,15 @@ use crate::body_mod::body;
 // }
 
 
+struct Body {
+    parent: Weak<Body>,
+}
+
+impl Body {
+    
+}
+
+
 fn main() {
     // let mut d = Body::new(12.);
     // let mut e = Body::new(20.);

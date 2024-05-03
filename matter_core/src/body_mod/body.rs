@@ -3,12 +3,10 @@ use uuid::Uuid;
 use super::{body_option::BodyOption, body_properties::BodyProperties};
 use crate::{
     core::{
-        collision_filter::CollisionFilter, common::{self, ShapeType}, constraint_impulse::ConstraintImpulse, force::Force, position::Position, render::Render, sprite::Sprite, velocity::Velocity, xy::XYNew
+        collision_filter::CollisionFilter, common::{self, ShapeType}, constraint_impulse::ConstraintImpulse, force::Force, position::{self, Position}, render::Render, sprite::Sprite, velocity::Velocity, xy::XYNew
     },
     geometry::{
-        bounds::Bounds,
-        vector::Vector,
-        vertices::{self, Vertex},
+        axes, bounds::{self, Bounds}, vector::Vector, vertices::{self, Vertex}
     },
 };
 
@@ -200,14 +198,25 @@ impl Body {
         this!(self).area
     }
 
-    // pub fn get_axes(&self) -> Option<Rc<Vec<Vertex>>> {
-    //     match this!(self).axes {
-    //         Some(axes) => {
-    //             Rc::n
-    //         },
-    //         None => None,
-    //     }
-    // }
+    pub fn get_axes(&self) -> Option<Vec<Vertex>> {
+        this!(self).axes.clone()
+    }
+
+    pub fn get_position(&self) -> Position {
+        this!(self).position
+    }
+
+    pub fn get_bounds(&self) -> Option<Bounds> {
+        this!(self).bounds
+    }
+
+    pub fn get_velocity(&self) -> Velocity {
+        this!(self).velocity
+    }
+
+    pub fn get_vertices(&self) -> Vec<Vertex> {
+        this!(self).vertices.clone()
+    }
 
 
 
@@ -246,6 +255,45 @@ impl Body {
         content.inverse_mass = 1. / content.mass;
         content.density = content.mass / content.area;
     }
+
+
+    
+    pub fn set_vertices(&mut self, vertices: Vec<Vertex>) {
+        let mut vertices = vertices;
+        vertices::set_body(&mut vertices, self);
+
+        let mut density_area = 0.;
+        {
+            let mut this = this_mut!(self);
+            this.vertices = vertices;
+            this.axes = Some(axes::from_vertices(&this.vertices));
+            this.area = vertices::area(&this.vertices, false);
+            density_area = this.density * this.area;
+        }
+
+        self.set_mass(density_area);
+        
+        let mut inertia = 0.;
+        {
+            let mut this = this_mut!(self);
+            let centre = vertices::centre(&this.vertices);
+            vertices::translate(&mut this.vertices, &centre, Some(-1.0));
+            inertia = INERTIA_SCALE * vertices::innertia(&this.vertices, this.mass);
+        }
+        self.set_inertia(inertia);
+
+        {
+            let mut this = this_mut!(self);
+            let position = this.position;
+
+            vertices::translate(&mut this.vertices, &position, None);
+            if let Some(mut bounds) = &this.bounds {
+                bounds::update(&mut bounds, &this.vertices, Some(&this.velocity));
+                this.bounds = Some(bounds.clone());
+            }
+        }
+    }
+
 
     // pub fn update_bounds(&mut self, vertices: &Vec<Vertex>, velocity: Option<&Velocity>) {
     //     let mut this = self.content.as_ref().borrow_mut();
@@ -288,13 +336,9 @@ impl Body {
         self.angle
     }
 
-    pub fn get_vertices(&self) -> Vec<Vertex> {
-        self.vertices.clone()
-    }
+    
 
-    pub fn get_position(&self) -> Position {
-        self.position
-    }
+    
 
     pub fn get_force(&self) -> Force {
         self.force
@@ -324,9 +368,7 @@ impl Body {
         self.angular_speed
     }
 
-    pub fn get_velocity(&self) -> Velocity {
-        self.velocity
-    }
+    
 
     pub fn get_angular_velocity(&self) -> f64 {
         self.angular_velocity
@@ -390,9 +432,7 @@ impl Body {
     //     self.events
     // }
 
-    pub fn get_bounds(&self) -> Option<Bounds> {
-        self.bounds
-    }
+    
 
     pub fn get_chamfer(&self) -> Option<Vec<Vector>> {
         self.chamfer.clone()
@@ -423,29 +463,7 @@ impl Body {
 
     
 
-    pub fn set_vertices(&mut self, vertices: Vec<Vertex>) {
-        let mut vertices = vertices;
-        vertices
-            .iter_mut()
-            .for_each(|vertex| vertex.set_body_id(self.id));
-
-        self.vertices = vertices;
-        self.axes = Some(axes::from_vertices(&self.vertices));
-        self.area = vertices::area(&self.vertices, false);
-        self.set_mass(self.density * self.area);
-        let centre = vertices::centre(&self.vertices);
-        vertices::translate(&mut self.vertices, &centre, Some(-1.0));
-
-        self.set_inertia(INERTIA_SCALE * vertices::innertia(&self.vertices, self.mass));
-
-        vertices::translate(&mut self.vertices, &self.position, None);
-        if self.bounds.is_some() {
-            let mut bounds = self.bounds.as_mut().unwrap();
-
-            bounds::update(&mut bounds, &self.vertices, Some(&self.velocity));
-            self.bounds = Some(bounds.clone());
-        }
-    }
+    
 
     pub fn update_properties_for_part(properties: &mut BodyProperties, part: &Body) {
         let mass = if part.get_mass() != f64::INFINITY {
@@ -591,44 +609,46 @@ mod tests {
 
     #[test]
     fn set_vertices_should_mutate_the_body_to_contain_valid_values() {
-        // // Arrange
-        // let vertices = vec_vector_to_vec_vertex(test_square());
+        // Arrange
+        let vertices = vec_vector_to_vec_vertex(test_square());
 
-        // let mut content = BodyContent::default_contant();
-        // content.id = common::next_id();
-        // content.inertia = 1706.6666666666667;
-        // content.inverse_inertia = 0.0005859375;
-        // content.mass = 1.6;
-        // content.inverse_mass = 0.625;
-        // content.density = 0.001;
-        // content.area = 1600.;
-        // content.position = Position::new(2., 2.);
-        // content.bounds = Some(Bounds {
-        //     max: BoundsPart { x: 20.0, y: 20.0 },
-        //     min: BoundsPart { x: -20.0, y: -20.0 },
-        // });
-        // content.velocity = Velocity::new(0., 0.);
-        // let mut body = Body { content: Rc::new(RefCell::new(content)), parent: Weak::new() };
+        let mut content = BodyContent::default_contant();
+        content.id = common::next_id();
+        content.inertia = 1706.6666666666667;
+        content.inverse_inertia = 0.0005859375;
+        content.mass = 1.6;
+        content.inverse_mass = 0.625;
+        content.density = 0.001;
+        content.area = 1600.;
+        content.position = Position::new(2., 2.);
+        content.bounds = Some(Bounds {
+            max: BoundsPart { x: 20.0, y: 20.0 },
+            min: BoundsPart { x: -20.0, y: -20.0 },
+        });
+        content.velocity = Velocity::new(0., 0.);
+        let mut body = Body { content: Rc::new(RefCell::new(content)), parent: Weak::new() };
 
-        // // Act
-        // body.set_vertices(vertices);
+        // Act
+        body.set_vertices(vertices);
 
-        // // Assert
-        // assert_float(body.get_area(), 4.0);
-        // assert_xy(&body.get_axes().unwrap()[0], 0.0, 1.0);
-        // assert_xy(&body.get_axes().unwrap()[1], -1.0, 0.0);
-        // assert_bounds(&body.get_bounds().unwrap(), 1.0, 1.0, 3.0, 3.0);
-        // assert_float(body.density, 0.001);
-        // assert_float(body.inertia, 0.010666666666666666);
-        // assert_float(body.inverse_inertia, 93.75);
-        // assert_float(body.inverse_mass, 250.0);
-        // assert_float(body.mass, 0.004);
-        // assert_position(&body.position, 2.0, 2.0);
-        // assert_velocity(&body.velocity, 0.0, 0.0);
-        // assert_vertex(&body.vertices[0], body.id, 1.0, 1.0, 0, false);
-        // assert_vertex(&body.vertices[1], body.id, 3.0, 1.0, 1, false);
-        // assert_vertex(&body.vertices[2], body.id, 3.0, 3.0, 2, false);
-        // assert_vertex(&body.vertices[3], body.id, 1.0, 3.0, 3, false);
+        // Assert
+        assert_float(body.get_area(), 4.0);
+        assert_xy(&body.get_axes().unwrap()[0], 0.0, 1.0);
+        assert_xy(&body.get_axes().unwrap()[1], -1.0, 0.0);
+        assert_bounds(&body.get_bounds().unwrap(), 1.0, 1.0, 3.0, 3.0);
+        assert_float(body.get_density(), 0.001);
+        assert_float(body.get_inertia(), 0.010666666666666666);
+        assert_float(body.get_inverse_inertia(), 93.75);
+        assert_float(body.get_inverse_mass(), 250.0);
+        assert_float(body.get_mass(), 0.004);
+        assert_position(&body.get_position(), 2.0, 2.0);
+        assert_velocity(&body.get_velocity(), 0.0, 0.0);
+        let vertices = body.get_vertices();
+        let body = Some(body);
+        assert_vertex(&vertices[0], body, 1.0, 1.0, 0, false);
+        assert_vertex(&vertices[1], body, 3.0, 1.0, 1, false);
+        assert_vertex(&vertices[2], body, 3.0, 3.0, 2, false);
+        assert_vertex(&vertices[3], body, 1.0, 3.0, 3, false);
     }
 
 

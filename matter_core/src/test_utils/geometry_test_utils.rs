@@ -19,7 +19,7 @@ pub fn assert_xy(result: &impl XY, expected_x: f64, expected_y: f64) {
 
 pub fn assert_vertex(
     result: &Vertex,
-    expected_body: Option<Body>,
+    expected_body: Option<&Body>,
     expected_x: f64,
     expected_y: f64,
     expected_index: usize,
