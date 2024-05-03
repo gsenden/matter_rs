@@ -16,40 +16,74 @@ mod body_mod;
 use crate::body_mod::body;
 
 
-struct InnerBody {
+struct Vertex {
+    body: Body,
+    y: f64,
+}
+
+impl Vertex {
+    pub fn new(body: Body, y: f64) -> Self {
+        Vertex { body: body, y: y}
+    }
+}
+
+struct BodyContent {
     x: f64,
+    parts: Option<Vec<Body>>,
 }
 
 struct Body {
-    inner: Rc<RefCell<InnerBody>>,
-    parent: Weak<RefCell<InnerBody>>
+    content: Rc<RefCell<BodyContent>>,
+    parent: Weak<RefCell<BodyContent>>,
+    
 }
 
 impl Body {
     pub fn new(x: f64) -> Self {
-        let inner = InnerBody { x: x };
-        Body { inner: Rc::new(RefCell::new(inner)), parent: Weak::new() }
+        let content = BodyContent { x: x, parts: None };
+        Body { content: Rc::new(RefCell::new(content)), parent: Weak::new() }
+    }
+
+    fn clone(&self) -> Body {
+        Body { content: self.content.clone(), parent: self.parent.clone() }
     }
 
     pub fn get_x(&self) -> f64 {
-        self.inner.as_ref().borrow().x
+        self.content.as_ref().borrow().x
     }
 
     pub fn set_x(&mut self, x: f64 ) {
-        self.inner.as_ref().borrow_mut().x = x;
+        self.content.as_ref().borrow_mut().x = x;
     } 
 
     pub fn set_parent(&mut self, parent: &Body) {
-        self.parent = Rc::downgrade(&parent.inner);
+        self.parent = Rc::downgrade(&parent.content);
     }
 
     pub fn get_parent(&self) -> Option<Body> {
-        if let Some(body) = self.parent.upgrade() {
-            Some(Body { inner: body, parent: Weak::new() })
+        if let Some(content) = self.parent.upgrade() {
+            Some(Body { content, parent: Weak::new() })
         } else {
             None
         }
     }
+
+    pub fn set_parts(&mut self, parts: Vec<Body>) {
+        let mut this = self.content.as_ref().borrow_mut();
+        this.parts = Some(parts);
+    }
+
+    pub fn get_parts(&self) -> Vec<Body> {
+        let mut parts = vec![self.clone()];
+        let this = self.content.as_ref().borrow();
+        if let Some(my_parts) = &this.parts {
+            for part in my_parts.iter() {
+                parts.push(part.clone());
+            }
+        }
+        parts
+    }
+
 }
 
 
