@@ -56,7 +56,7 @@ impl Bounds {
     }
 }
 
-pub fn update(bounds: &mut Bounds, vertices: &Vec<Vertex>, velocity: Option<&Velocity>) {
+pub fn update(bounds: &mut Bounds, vertices: &Vec<Vertex>, velocity: &Option<&Velocity>) {
     bounds.min.x = f64::INFINITY;
     bounds.max.x = -f64::INFINITY;
     bounds.min.y = f64::INFINITY;
@@ -101,7 +101,7 @@ pub fn create(vertices: Option<&Vec<Vertex>>) -> Bounds {
 
     if vertices.is_some() {
         let vertices = vertices.unwrap();
-        update(&mut bounds, vertices, None);
+        update(&mut bounds, vertices, &None);
     }
 
     bounds
@@ -264,7 +264,7 @@ mod tests {
         let mut bounds = test_bounds();
 
         // Act
-        update(&mut bounds, &vertices, None);
+        update(&mut bounds, &vertices, &None);
 
         // Assert
         assert_bounds(&bounds, 0.0, 0.0, 40.1, 40.1);
@@ -278,7 +278,7 @@ mod tests {
         let mut bounds = test_bounds();
 
         // Act
-        update(&mut bounds, &vertices, Some(&velocity));
+        update(&mut bounds, &vertices, &Some(&velocity));
 
         // Assert
         assert_bounds(&bounds, 0.0, 0.0, 45.1, 46.1);
