@@ -137,13 +137,13 @@ impl BodyContent {
     }
 }
 
-macro_rules! this {
+macro_rules! content {
     ($a:expr) => {
         $a.content.as_ref().borrow()
     };
 }
 
-macro_rules! this_mut {
+macro_rules! content_mut {
     ($a:expr) => {
         $a.content.as_ref().borrow_mut()
     };
@@ -188,60 +188,60 @@ impl Body {
     }
 
     pub fn get_id(&self) -> Uuid {
-        this!(self).id
+        content!(self).id
     }
 
     pub fn get_inertia(&self) -> f64 {
-        this!(self).inertia
+        content!(self).inertia
     }
 
     pub fn get_inverse_inertia(&self) -> f64 {
-        this!(self).inverse_inertia
+        content!(self).inverse_inertia
     }
 
     pub fn get_mass(&self) -> f64 {
-        this!(self).mass
+        content!(self).mass
     }
 
     pub fn get_inverse_mass(&self) -> f64 {
-        this!(self).inverse_mass
+        content!(self).inverse_mass
     }
 
     pub fn get_density(&self) -> f64 {
-        this!(self).density
+        content!(self).density
     }
 
     pub fn get_area(&self) -> f64 {
-        this!(self).area
+        content!(self).area
     }
 
     pub fn get_axes(&self) -> Option<Vec<Vertex>> {
-        this!(self).axes.clone()
+        content!(self).axes.clone()
     }
 
     pub fn get_position(&self) -> Position {
-        this!(self).position
+        content!(self).position
     }
 
     pub fn get_bounds(&self) -> Option<Bounds> {
-        this!(self).bounds
+        content!(self).bounds
     }
 
     pub fn get_velocity(&self) -> Velocity {
-        this!(self).velocity
+        content!(self).velocity
     }
 
     pub fn get_vertices(&self) -> Vec<Vertex> {
-        this!(self).vertices.clone()
+        content!(self).vertices.clone()
     }
 
     pub fn get_position_prev(&self) -> Option<Position> {
-        this!(self).position_prev
+        content!(self).position_prev
     }
 
     pub fn get_parts(&self) -> Vec<Body> {
         let mut parts = vec![self.clone()];
-        if let Some(my_parts) = &this!(self).parts {
+        if let Some(my_parts) = &content!(self).parts {
             for part in my_parts.iter() {
                 parts.push(part.clone());
             }
@@ -250,25 +250,25 @@ impl Body {
     }
 
     pub fn set_parts(&mut self, parts: Vec<Body>) {
-        this_mut!(self).parts = Some(parts);
+        content_mut!(self).parts = Some(parts);
     }
 
     pub fn set_inertia(&mut self, inertia: f64) {
-        let mut this = this_mut!(self);
-        this.inertia = inertia;
-        this.inverse_inertia = 1. / this.inertia;
+        let mut content = content_mut!(self);
+        content.inertia = inertia;
+        content.inverse_inertia = 1. / content.inertia;
     }
 
     fn get_moment(&self) -> f64 {
-        let this = this!(self);
-        this.inertia / (this.mass / 6.)
+        let content = content!(self);
+        content.inertia / (content.mass / 6.)
     }
 
     pub fn set_mass(&mut self, mass: f64) {
         let moment = self.get_moment();
         self.set_inertia(moment * (mass / 6.));
 
-        let mut content = this_mut!(self);
+        let mut content = content_mut!(self);
         content.mass = mass;
         content.inverse_mass = 1. / content.mass;
         content.density = content.mass / content.area;
@@ -280,32 +280,32 @@ impl Body {
 
         let mut density_area = 0.;
         {
-            let mut this = this_mut!(self);
-            this.vertices = vertices;
-            this.axes = Some(axes::from_vertices(&this.vertices));
-            this.area = vertices::area(&this.vertices, false);
-            density_area = this.density * this.area;
+            let mut content = content_mut!(self);
+            content.vertices = vertices;
+            content.axes = Some(axes::from_vertices(&content.vertices));
+            content.area = vertices::area(&content.vertices, false);
+            density_area = content.density * content.area;
         }
 
         self.set_mass(density_area);
 
         let mut inertia = 0.;
         {
-            let mut this = this_mut!(self);
-            let centre = vertices::centre(&this.vertices);
-            vertices::translate(&mut this.vertices, &centre, Some(-1.0));
-            inertia = INERTIA_SCALE * vertices::innertia(&this.vertices, this.mass);
+            let mut content = content_mut!(self);
+            let centre = vertices::centre(&content.vertices);
+            vertices::translate(&mut content.vertices, &centre, Some(-1.0));
+            inertia = INERTIA_SCALE * vertices::innertia(&content.vertices, content.mass);
         }
         self.set_inertia(inertia);
 
         {
-            let mut this = this_mut!(self);
-            let position = this.position;
+            let mut content = content_mut!(self);
+            let position = content.position;
 
-            vertices::translate(&mut this.vertices, &position, None);
-            if let Some(mut bounds) = &this.bounds {
-                bounds::update(&mut bounds, &this.vertices, &Some(&this.velocity));
-                this.bounds = Some(bounds.clone());
+            vertices::translate(&mut content.vertices, &position, None);
+            if let Some(mut bounds) = &content.bounds {
+                bounds::update(&mut bounds, &content.vertices, &Some(&content.velocity));
+                content.bounds = Some(bounds.clone());
             }
         }
     }
@@ -333,9 +333,9 @@ impl Body {
 
         let mut no_parts = true;
         {
-            let this = this!(self);
+            let content = content!(self);
 
-            if let Some(parts) = &this.parts {
+            if let Some(parts) = &content.parts {
                 // sum all except parent
                 for part in parts.iter() {
                     Body::update_properties_for_part(&mut properties, part);
@@ -356,58 +356,36 @@ impl Body {
         properties
     }
 
-    fn update_bounds(&mut self, vertices: &Vec<Vertex>, velocity: &Option<&Velocity>) {
-        let mut this = this_mut!(self);
-        if let Some(mut bounds) = &this.bounds {
-            bounds::update(&mut bounds, &vertices, velocity);
-        }
-    }
-
-    fn update_part_vertices(mut part: RefMut<BodyContent>, delta: &Vector) -> Vec<Vertex> {
-        part.position.add_xy(delta);
-        vertices::translate(&mut part.vertices, delta, None);
-        part.vertices.clone()
-
-        //part.update_bounds(&vertices, velocity.as_ref());
-    }
-
     pub fn set_position(&mut self, position: Position, update_velocity: bool) {
-        let mut delta = vector::create(0., 0.);
+        let mut delta: Vector = vector::create(0., 0.);
+        let mut parent_velocity = Velocity::new(0., 0.);
+
         {
-            let mut this = this_mut!(self);
-            delta = vector::sub(&position, &this.position);
+            let mut content = content_mut!(self);
+            parent_velocity = content.velocity.clone();
+            delta = vector::sub(&position, &content.position);
+
             if update_velocity {
-                this.position_prev = Some(this.position.clone());
-                this.velocity.set_xy(&delta);
-                this.speed = vector::magnitude(&delta);
+                content.position_prev = Some(content.position.clone());
+                content.velocity.set_xy(&delta);
+                content.speed = vector::magnitude(&delta);
             } else {
-                if let Some(ref mut position_prev) = this.position_prev {
+                if let Some(ref mut position_prev) = content.position_prev {
                     position_prev.add_xy(&delta)
                 } else {
-                    this.position_prev = Some(Position::new_from(&delta));
+                    content.position_prev = Some(Position::new_from(&delta));
                 }
             }
         }
 
-        let velocity = self.get_velocity().clone();
-        let velocity = Some(&velocity);
-        let mut vertices: Vec<Vertex> = Vec::new();
-        {
-            let this = this_mut!(self);
-            vertices = Body::update_part_vertices(this, &delta)
-        }
-        self.update_bounds(&vertices, &velocity);
+        for part in self.get_parts().iter_mut() {
+            let mut part_content = content_mut!(part);
 
-        {
-            let mut this = this_mut!(self);
-            if let Some(parts) = &mut this.parts {
-                for mut part in parts.iter_mut() {
-                    {
-                        let this_part = this_mut!(part);
-                        vertices = Body::update_part_vertices(this_part, &delta);
-                    }
-                    part.update_bounds(&vertices, &velocity);
-                }
+            part_content.position.add_xy(&delta);
+            vertices::translate(&mut part_content.vertices, &delta, None);
+            let vertices = part_content.vertices.clone();
+            if let Some(bounds) = &mut part_content.bounds {
+                bounds::update(bounds, &vertices, &Some(&parent_velocity));
             }
         }
     }
