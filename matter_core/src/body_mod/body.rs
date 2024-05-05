@@ -570,6 +570,99 @@ mod tests {
     }
 
     #[test]
+    fn set_parts_should_update_body_with_parts_with_setting_autohull_to_true() {
+        // Arrange
+        let mut content = BodyContent::default_contant();
+        content.id = common::next_id();
+        content.mass = 1.6;
+        content.area = 1600.;
+        content.inertia = 1706.6666666666667;
+        content.position = Position::new(2., 2.);
+        content.position_prev = Some(Position::new(1., 1.));
+        content.bounds = Some(test_bounds());
+        content.vertices = vec_vector_to_vec_vertex(test_square());
+        content.bounds = Some(test_bounds());
+
+        let mut parts = [1., 2.]
+            .iter()
+            .map(|increase| {
+                let mut part_content = content.clone();
+                part_content.id = common::next_id();
+                part_content.mass += increase;
+                part_content.area += increase;
+                part_content.inertia += increase;
+                part_content.bounds = Some(test_bounds());
+                part_content.position = Position::new(*increase, *increase);
+                part_content.vertices = vec_vector_to_vec_vertex(test_square())
+                    .iter_mut()
+                    .map(|vertex| {
+                        vertex.set_x(vertex.get_x() + increase);
+                        vertex.set_y(vertex.get_y() + increase);
+                        vertex.clone()
+                    })
+                    .collect_vec();
+                body_from_content(part_content)
+            })
+            .collect_vec();
+
+        let mut body = body_from_content(content);
+
+        let auto_hull = true;
+
+        // Act
+        body.set_parts(parts, Some(auto_hull));
+
+        // Assert
+        assert_float(body.get_area(), 3203.);
+        assert_bounds(&body.get_bounds().unwrap(), 4., 4., 7., 7.);
+        assert_float(body.get_density(), 0.0019356852950359038);
+        assert_float(body.get_inertia(), 3416.3333333333335);
+        assert_float(body.get_inverse_inertia(), 0.0002927114840472241);
+        assert_float(body.get_inverse_mass(), 0.16129032258064516);
+        assert_float(body.get_mass(), 6.2);
+        assert_xy(&body.get_position(), 1.5806451612903227, 1.5806451612903227);
+        assert_xy(
+            &body.get_position_prev().unwrap(),
+            1.5806451612903227,
+            1.5806451612903227,
+        );
+        assert_xy(&body.get_vertices()[0], 7., 7.);
+        assert_xy(&body.get_vertices()[1], 5., 7.);
+        assert_xy(&body.get_vertices()[2], 4., 6.);
+        assert_xy(&body.get_vertices()[3], 4., 4.);
+        assert_xy(&body.get_vertices()[4], 6., 4.);
+        assert_xy(&body.get_vertices()[5], 7., 5.);
+
+        assert_eq!(body.get_parts().len(), 3);
+        assert_eq!(body.get_vertices().len(), 6);
+
+        let parts = body.get_parts();
+        assert_float(parts[1].get_area(), 1601.);
+        assert_bounds(&parts[1].get_bounds().unwrap(), 2., 2., 4., 4.);
+        assert_float(parts[1].get_inertia(), 1707.6666666666667);
+        assert_float(parts[1].get_mass(), 2.6);
+        assert_xy(&parts[1].get_position(), 1., 1.);
+        assert_xy(&parts[1].get_position_prev().unwrap(), 1., 1.);
+        assert_xy(&parts[1].get_vertices()[0], 2., 2.);
+        assert_xy(&parts[1].get_vertices()[1], 4., 2.);
+        assert_xy(&parts[1].get_vertices()[2], 4., 4.);
+        assert_xy(&parts[1].get_vertices()[3], 2., 4.);
+        assert_eq!(parts[1].get_vertices().len(), 4);
+
+        assert_float(parts[2].get_area(), 1602.);
+        assert_bounds(&parts[2].get_bounds().unwrap(), 3., 3., 5., 5.);
+        assert_float(parts[2].get_inertia(), 1708.6666666666667);
+        assert_float(parts[2].get_mass(), 3.6);
+        assert_xy(&parts[2].get_position(), 2., 2.);
+        assert_xy(&parts[2].get_position_prev().unwrap(), 1., 1.);
+        assert_xy(&parts[2].get_vertices()[0], 3., 3.);
+        assert_xy(&parts[2].get_vertices()[1], 5., 3.);
+        assert_xy(&parts[2].get_vertices()[2], 5., 5.);
+        assert_xy(&parts[2].get_vertices()[3], 3., 5.);
+        assert_eq!(parts[2].get_vertices().len(), 4);
+    }
+
+    #[test]
     fn set_parts_should_update_body_with_parts_without_setting_autohull() {
         // Arrange
         let mut content = BodyContent::default_contant();
@@ -607,10 +700,10 @@ mod tests {
 
         let mut body = body_from_content(content);
 
-        let auto_hull = false;
+        let auto_hull = Some(false);
 
         // Act
-        body.set_parts(parts, Some(auto_hull));
+        body.set_parts(parts, auto_hull);
 
         // Assert
         assert_float(body.get_area(), 3203.);
