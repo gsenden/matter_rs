@@ -18,7 +18,6 @@ use crate::{
         vertices::{self, Vertex},
     },
 };
-use itertools::concat;
 use std::{
     cell::{RefCell, RefMut},
     rc::{Rc, Weak},
@@ -536,6 +535,32 @@ impl Body {
         self.set_inertia(total.get_inertia());
         self.set_position(total.get_centre(), None);
     }
+
+    pub fn set_centre(&mut self, centre: &Position, relative: Option<bool>) {
+        let relative = relative.unwrap_or(false);
+        let mut content = content_mut!(self);
+        let position = content.position;
+        if !relative {
+            if let Some(position_prev) = &mut content.position_prev {
+                position_prev.set_x(centre.get_x() - (position.get_x() - position_prev.get_x()));
+                position_prev.set_y(centre.get_y() - (position.get_y() - position_prev.get_y()));
+            } else {
+                let position_prev = Position::new(
+                    centre.get_x() - position.get_x(),
+                    centre.get_y() - position.get_y(),
+                );
+                content.position_prev = Some(position_prev);
+            }
+            content.position.set_xy(centre);
+        } else {
+            if let Some(position_prev) = &mut content.position_prev {
+                position_prev.add_xy(centre);
+            } else {
+                content.position_prev = Some(centre.clone());
+            }
+            content.position.add_xy(centre);
+        }
+    }
     // endregion: Setters
 }
 
@@ -567,6 +592,26 @@ mod tests {
             content: Rc::new(RefCell::new(content)),
             parent: Weak::new(),
         }
+    }
+
+    #[test]
+    fn set_centre_should_be_able_to_set_the_centre_on_a_default_body_not_relative() {
+        // Arrange
+        let mut content = BodyContent::default_contant();
+        content.id = common::next_id();
+        content.position = Position::new(2., 2.);
+        content.position_prev = Some(Position::new(1., 1.));
+        let mut body = body_from_content(content);
+
+        let centre = Position::new(42., 43.);
+        let relative = None;
+
+        // Act
+        body.set_centre(&centre, relative);
+
+        // Assert
+        assert_xy(&body.get_position(), 42., 43.);
+        assert_xy(&body.get_position_prev().unwrap(), 41., 42.);
     }
 
     #[test]
