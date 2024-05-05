@@ -12,9 +12,7 @@ use crate::test_utils::geometry_test_utils;
 mod geometry;
 use crate::geometry::vector;
 
-mod body_mod;
-use crate::body_mod::body;
-
+mod body;
 
 // struct Vertex {
 //     body: Body,
@@ -35,7 +33,7 @@ use crate::body_mod::body;
 // struct Body {
 //     content: Rc<RefCell<BodyContent>>,
 //     parent: Weak<RefCell<BodyContent>>,
-    
+
 // }
 
 // impl Body {
@@ -54,7 +52,7 @@ use crate::body_mod::body;
 
 //     pub fn set_x(&mut self, x: f64 ) {
 //         self.content.as_ref().borrow_mut().x = x;
-//     } 
+//     }
 
 //     pub fn set_parent(&mut self, parent: &Body) {
 //         self.parent = Rc::downgrade(&parent.content);
@@ -86,15 +84,11 @@ use crate::body_mod::body;
 
 // }
 
-
 struct Body {
     parent: Weak<Body>,
 }
 
-impl Body {
-    
-}
-
+impl Body {}
 
 fn main() {
     // let mut d = Body::new(12.);
@@ -103,8 +97,6 @@ fn main() {
     // d.set_parent(&e);
     // d.get_parent().unwrap().set_x(13.);
 
-
-    
     // println!("{}", e.get_x());
     // let a = Rc::new(RefCell::new(Body{x: 1., parent: Weak::new()}));
     // let b = Rc::new(RefCell::new(Body{x: 10., parent: Rc::downgrade(&a)}));

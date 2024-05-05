@@ -1,11 +1,13 @@
 use uuid::Uuid;
 
 use crate::{
-    body_mod::body::Body, core::xy::XY, geometry::{
+    body::body::Body,
+    core::xy::XY,
+    geometry::{
         bounds::{Bounds, BoundsPart},
         vector,
         vertices::Vertex,
-    }
+    },
 };
 
 #[cfg(test)]
@@ -26,7 +28,7 @@ pub fn assert_vertex(
     expected_is_internal: bool,
 ) {
     match expected_body {
-        Some(body) => assert_eq!(body.get_id(),result.get_body().unwrap().get_id()),
+        Some(body) => assert_eq!(body.get_id(), result.get_body().unwrap().get_id()),
         None => assert_eq!(result.get_body().is_none(), true),
     }
 

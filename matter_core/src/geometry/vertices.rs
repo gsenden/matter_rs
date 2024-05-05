@@ -3,7 +3,7 @@ use std::cmp::Ordering;
 use std::vec;
 use uuid::Uuid;
 
-use crate::body_mod::body::Body;
+use crate::body::body::Body;
 use crate::core::xy::XY;
 
 use super::super::core::common;
@@ -38,7 +38,12 @@ impl XY for Vertex {
 }
 
 impl Vertex {
-    pub fn from_vector(body: Option<Body>, vector: &Vector, index: usize, is_internal: bool) -> Self {
+    pub fn from_vector(
+        body: Option<Body>,
+        vector: &Vector,
+        index: usize,
+        is_internal: bool,
+    ) -> Self {
         Vertex::new(body, vector.get_x(), vector.get_y(), index, is_internal)
     }
 
