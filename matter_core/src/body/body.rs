@@ -264,11 +264,11 @@ impl Body {
         content!(self).speed
     }
 
-    pub fn get_angular_speed(&self) -> f64 {
+    fn get_angular_speed_prop(&self) -> f64 {
         content!(self).angular_speed
     }
 
-    pub fn get_angular_velocity(&self) -> f64 {
+    fn get_angular_velocity_prop(&self) -> f64 {
         content!(self).angular_velocity
     }
 
@@ -603,6 +603,25 @@ impl Body {
             }
         }
     }
+
+    fn set_velocity(&mut self, velocity: &Velocity) {
+        let mut content = content_mut!(self);
+        let time_scale = content.delta_time / BASE_DELTA;
+
+        let position_prev = Position::new(
+            content.position.get_x() - velocity.get_x() * time_scale,
+            content.position.get_y() - velocity.get_y() * time_scale,
+        );
+
+        let velocity = Velocity::new(
+            (content.position.get_x() - position_prev.get_x()) / time_scale,
+            (content.position.get_y() - position_prev.get_y()) / time_scale,
+        );
+
+        content.position_prev = Some(position_prev);
+        content.velocity = velocity;
+        content.speed = vector::magnitude(&content.velocity);
+    }
     // endregion: Setters
 }
 
@@ -634,6 +653,164 @@ mod tests {
             content: Rc::new(RefCell::new(content)),
             parent: Weak::new(),
         }
+    }
+
+    #[test]
+    fn should_be_able_to_set_the_velocity_on_a_body() {
+        // Arrange
+        let mut content = BodyContent::default_contant();
+        content.position = Position::new(37., 37.);
+        content.position_prev = Some(Position::new(36., 36.));
+        let mut body = body_from_content(content);
+        let velocity = Velocity::new(42., 43.);
+
+        // Act
+        body.set_velocity(&velocity);
+
+        // Assert
+        assert_xy(&body.get_position(), 37., 37.);
+        assert_xy(&body.get_position_prev().unwrap(), -5., -6.);
+        assert_float(body.get_speed(), 60.108235708594876);
+        assert_xy(&body.get_velocity(), 42., 43.);
+    }
+
+    #[test]
+    fn set_angle_should_be_able_to_set_the_angle_on_a_default_body_updating_the_velocity() {
+        // Arrange
+        let mut content = BodyContent::default_contant();
+        content.id = common::next_id();
+        content.angle = 42.;
+        content.angle_prev = 41.;
+        content.axes = Some(vec![
+            Vertex::new(None, 1., 1., 0, false),
+            Vertex::new(None, -1., -1., 1, false),
+        ]);
+        content.position = Position::new(0., 0.);
+        content.bounds = Some(test_bounds());
+        content.vertices = vec_vector_to_vec_vertex(test_square());
+
+        let mut parts = [1., 2.]
+            .iter()
+            .map(|increase| {
+                let mut part_content = content.clone();
+                part_content.id = common::next_id();
+                part_content.angle += increase;
+                part_content.angle_prev += increase;
+                if let Some(axes) = &mut part_content.axes {
+                    axes[0].add_x_y(*increase, *increase);
+                    axes[1].add_x_y(-1. * increase, -1. * increase);
+                }
+                part_content.bounds = Some(test_bounds());
+                part_content.position = Position::new(*increase, *increase);
+                part_content.vertices = vec_vector_to_vec_vertex(test_square())
+                    .iter_mut()
+                    .map(|vertex| {
+                        vertex.set_x(vertex.get_x() + increase);
+                        vertex.set_y(vertex.get_y() + increase);
+                        vertex.clone()
+                    })
+                    .collect_vec();
+                body_from_content(part_content)
+            })
+            .collect_vec();
+        content.parts = Some(parts);
+        let mut body = body_from_content(content);
+
+        let update_velocity = Some(true);
+
+        // Act
+        body.set_angle(37., update_velocity);
+
+        let part = body.get_parts()[0].clone();
+        assert_float(part.get_angle(), 37.);
+        assert_float(part.get_angle_prev(), 42.);
+        assert_float(part.get_angular_speed_prop(), 5.);
+        assert_float(part.get_angular_velocity_prop(), -5.);
+        assert_xy(
+            &part.get_axes().unwrap()[0],
+            -0.6752620891999122,
+            1.2425864601263648,
+        );
+        assert_xy(
+            &part.get_axes().unwrap()[1],
+            0.6752620891999122,
+            -1.2425864601263648,
+        );
+        assert_bounds(
+            &part.get_bounds().unwrap(),
+            -2.593110638526189,
+            1.2425864601263648,
+            -0.10793771827345966,
+            3.7277593803790943,
+        );
+        assert_xy(&part.get_position(), 0., 0.);
+        let vertices = part.get_vertices();
+        assert_xy(&vertices[0], -0.6752620891999122, 1.2425864601263648);
+        assert_xy(&vertices[1], -0.10793771827345966, 3.1604350094526414);
+        assert_xy(&vertices[2], -2.0257862675997362, 3.7277593803790943);
+        assert_xy(&vertices[3], -2.593110638526189, 1.8099108310528171);
+
+        let part = body.get_parts()[1].clone();
+        assert_float(part.get_angle(), 38.);
+        assert_float(part.get_angle_prev(), 42.);
+        assert_xy(
+            &part.get_axes().unwrap()[0],
+            -1.3505241783998243,
+            2.4851729202527295,
+        );
+        assert_xy(
+            &part.get_axes().unwrap()[1],
+            1.3505241783998243,
+            -2.4851729202527295,
+        );
+        assert_bounds(
+            &part.get_bounds().unwrap(),
+            -3.2683727277261014,
+            2.4851729202527295,
+            -0.7831998074733719,
+            4.970345840505459,
+        );
+        assert_xy(
+            &part.get_position(),
+            -0.6752620891999122,
+            1.2425864601263648,
+        );
+        let vertices = part.get_vertices();
+        assert_xy(&vertices[0], -1.3505241783998243, 2.4851729202527295);
+        assert_xy(&vertices[1], -0.7831998074733719, 4.403021469579007);
+        assert_xy(&vertices[2], -2.7010483567996486, 4.970345840505459);
+        assert_xy(&vertices[3], -3.2683727277261014, 3.052497291179182);
+
+        let part = body.get_parts()[2].clone();
+        assert_float(part.get_angle(), 39.);
+        assert_float(part.get_angle_prev(), 43.);
+        assert_xy(
+            &part.get_axes().unwrap()[0],
+            -2.0257862675997362,
+            3.7277593803790943,
+        );
+        assert_xy(
+            &part.get_axes().unwrap()[1],
+            2.0257862675997362,
+            -3.7277593803790943,
+        );
+        assert_bounds(
+            &part.get_bounds().unwrap(),
+            -3.9436348169260134,
+            3.7277593803790943,
+            -1.458461896673284,
+            6.212932300631824,
+        );
+        assert_xy(
+            &part.get_position(),
+            -1.3505241783998243,
+            2.4851729202527295,
+        );
+        let vertices = part.get_vertices();
+        assert_xy(&vertices[0], -2.0257862675997362, 3.7277593803790943);
+        assert_xy(&vertices[1], -1.458461896673284, 5.645607929705371);
+        assert_xy(&vertices[2], -3.376310445999561, 6.212932300631824);
+        assert_xy(&vertices[3], -3.9436348169260134, 4.295083751305547);
     }
 
     #[test]
