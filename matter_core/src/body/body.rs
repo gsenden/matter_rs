@@ -18,6 +18,7 @@ use crate::{
         vertices::{self, Vertex},
     },
 };
+use core::time;
 use std::{
     cell::{RefCell, RefMut},
     rc::{Rc, Weak},
@@ -224,8 +225,23 @@ impl Body {
         content!(self).bounds
     }
 
-    pub fn get_velocity(&self) -> Velocity {
+    pub fn get_velocity_prop(&self) -> Velocity {
         content!(self).velocity
+    }
+
+    pub fn get_velocity(&self) -> Velocity {
+        let content = content!(self);
+        let time_scale = BASE_DELTA / content.delta_time;
+
+        if let Some(position_prev) = &content.position_prev {
+            let x = (content.position.get_x() - position_prev.get_x()) * time_scale;
+            let y = (content.position.get_y() - position_prev.get_y()) * time_scale;
+            Velocity::new(x, y)
+        } else {
+            let x = content.position.get_x() * time_scale;
+            let y = content.position.get_y() * time_scale;
+            Velocity::new(x, y)
+        }
     }
 
     pub fn get_vertices(&self) -> Vec<Vertex> {
@@ -260,8 +276,12 @@ impl Body {
         content!(self).total_contacts
     }
 
-    pub fn get_speed(&self) -> f64 {
+    pub fn get_speed_prop(&self) -> f64 {
         content!(self).speed
+    }
+
+    pub fn get_speed(&self) -> f64 {
+        vector::magnitude(&self.get_velocity())
     }
 
     fn get_angular_speed_prop(&self) -> f64 {
@@ -562,7 +582,7 @@ impl Body {
         }
     }
 
-    fn set_angle(&mut self, angle: f64, update_velocity: Option<bool>) {
+    pub fn set_angle(&mut self, angle: f64, update_velocity: Option<bool>) {
         let update_velocity = update_velocity.unwrap_or(false);
 
         let mut delta = 0.;
@@ -604,7 +624,7 @@ impl Body {
         }
     }
 
-    fn set_velocity(&mut self, velocity: &Velocity) {
+    pub fn set_velocity(&mut self, velocity: &Velocity) {
         let mut content = content_mut!(self);
         let time_scale = content.delta_time / BASE_DELTA;
 
@@ -622,6 +642,15 @@ impl Body {
         content.velocity = velocity;
         content.speed = vector::magnitude(&content.velocity);
     }
+
+    pub fn set_speed(&mut self, speed: f64) {
+        let velocity = self.get_velocity();
+        let normalised = vector::normalise(&velocity);
+        let velocity = vector::mult(&normalised, speed);
+        let velocity = Velocity::new_from(&velocity);
+        self.set_velocity(&velocity)
+    }
+
     // endregion: Setters
 }
 
@@ -656,6 +685,35 @@ mod tests {
     }
 
     #[test]
+    fn should_be_able_to_set_the_speed_on_a_body() {
+        // Arrange
+        let mut content = BodyContent::default_contant();
+        content.position = Position::new(37., 37.);
+        content.position_prev = Some(Position::new(36., 36.));
+        let mut body = body_from_content(content);
+        let speed = 42.;
+
+        // Act
+        body.set_speed(speed);
+
+        // Assert
+        assert_xy(&body.get_position(), 37., 37.);
+        assert_xy(
+            &body.get_position_prev().unwrap(),
+            7.301515190165006,
+            7.301515190165006,
+        );
+        assert_float(body.get_speed_prop(), 42.);
+        assert_float(body.get_speed(), 42.);
+        assert_xy(
+            &body.get_velocity_prop(),
+            29.698484809834994,
+            29.698484809834994,
+        );
+        assert_xy(&body.get_velocity(), 29.698484809834994, 29.698484809834994);
+    }
+
+    #[test]
     fn should_be_able_to_set_the_velocity_on_a_body() {
         // Arrange
         let mut content = BodyContent::default_contant();
@@ -670,7 +728,9 @@ mod tests {
         // Assert
         assert_xy(&body.get_position(), 37., 37.);
         assert_xy(&body.get_position_prev().unwrap(), -5., -6.);
+        assert_float(body.get_speed_prop(), 60.108235708594876);
         assert_float(body.get_speed(), 60.108235708594876);
+        assert_xy(&body.get_velocity_prop(), 42., 43.);
         assert_xy(&body.get_velocity(), 42., 43.);
     }
 
@@ -725,6 +785,7 @@ mod tests {
         assert_float(part.get_angle(), 37.);
         assert_float(part.get_angle_prev(), 42.);
         assert_float(part.get_angular_speed_prop(), 5.);
+
         assert_float(part.get_angular_velocity_prop(), -5.);
         assert_xy(
             &part.get_axes().unwrap()[0],
@@ -1214,14 +1275,15 @@ mod tests {
         // Assert
         assert_xy(&body.get_position(), 37., 37.);
         assert_xy(&body.get_position_prev().unwrap(), 2., 2.);
+        assert_float(body.get_speed_prop(), 49.49747468305833);
         assert_float(body.get_speed(), 49.49747468305833);
-        assert_xy(&body.get_velocity(), 35., 35.);
+        assert_xy(&body.get_velocity_prop(), 35., 35.);
 
         let parts = &body.get_parts();
         let part = parts[0].clone();
         assert_bounds(&part.get_bounds().unwrap(), 36., 36., 73., 73.);
         assert_xy(&part.get_position(), 37., 37.);
-        assert_xy(&part.get_velocity(), 35., 35.);
+        assert_xy(&part.get_velocity_prop(), 35., 35.);
         let vertices = part.get_vertices();
         assert_xy(&vertices[0], 36., 36.);
         assert_xy(&vertices[1], 38., 36.);
@@ -1231,7 +1293,7 @@ mod tests {
         let part = parts[1].clone();
         assert_bounds(&part.get_bounds().unwrap(), 37., 37., 74., 74.);
         assert_xy(&part.get_position(), 36., 36.);
-        assert_xy(&part.get_velocity(), 42., 42.);
+        assert_xy(&part.get_velocity_prop(), 42., 42.);
         let vertices = part.get_vertices();
         assert_xy(&vertices[0], 37., 37.);
         assert_xy(&vertices[1], 39., 37.);
@@ -1241,7 +1303,7 @@ mod tests {
         let part = parts[2].clone();
         assert_bounds(&part.get_bounds().unwrap(), 38., 38., 75., 75.);
         assert_xy(&part.get_position(), 37., 37.);
-        assert_xy(&part.get_velocity(), 42., 42.);
+        assert_xy(&part.get_velocity_prop(), 42., 42.);
         let vertices = part.get_vertices();
         assert_xy(&vertices[0], 38., 38.);
         assert_xy(&vertices[1], 40., 38.);
@@ -1290,13 +1352,13 @@ mod tests {
         // Assert
         assert_xy(&body.get_position(), 37., 37.);
         assert_xy(&body.get_position_prev().unwrap(), 36., 36.);
-        assert_xy(&body.get_velocity(), 42., 42.);
+        assert_xy(&body.get_velocity_prop(), 42., 42.);
 
         let parts = &body.get_parts();
         let part = parts[0].clone();
         assert_bounds(&part.get_bounds().unwrap(), 36., 36., 80., 80.);
         assert_xy(&part.get_position(), 37., 37.);
-        assert_xy(&part.get_velocity(), 42., 42.);
+        assert_xy(&part.get_velocity_prop(), 42., 42.);
         let vertices = part.get_vertices();
         assert_xy(&vertices[0], 36., 36.);
         assert_xy(&vertices[1], 38., 36.);
@@ -1306,7 +1368,7 @@ mod tests {
         let part = parts[1].clone();
         assert_bounds(&part.get_bounds().unwrap(), 37., 37., 81., 81.);
         assert_xy(&part.get_position(), 36., 36.);
-        assert_xy(&part.get_velocity(), 42., 42.);
+        assert_xy(&part.get_velocity_prop(), 42., 42.);
         let vertices = part.get_vertices();
         assert_xy(&vertices[0], 37., 37.);
         assert_xy(&vertices[1], 39., 37.);
@@ -1316,7 +1378,7 @@ mod tests {
         let part = parts[2].clone();
         assert_bounds(&part.get_bounds().unwrap(), 38., 38., 82., 82.);
         assert_xy(&part.get_position(), 37., 37.);
-        assert_xy(&part.get_velocity(), 42., 42.);
+        assert_xy(&part.get_velocity_prop(), 42., 42.);
         let vertices = part.get_vertices();
         assert_xy(&vertices[0], 38., 38.);
         assert_xy(&vertices[1], 40., 38.);
@@ -1394,7 +1456,7 @@ mod tests {
         assert_float(body.get_inverse_mass(), 250.0);
         assert_float(body.get_mass(), 0.004);
         assert_position(&body.get_position(), 2.0, 2.0);
-        assert_velocity(&body.get_velocity(), 0.0, 0.0);
+        assert_velocity(&body.get_velocity_prop(), 0.0, 0.0);
         let vertices = body.get_vertices();
         let body = Some(&body);
         assert_vertex(&vertices[0], body, 1.0, 1.0, 0, false);
