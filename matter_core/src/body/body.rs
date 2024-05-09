@@ -172,7 +172,6 @@ impl Body {
         }
     }
 
-    // MARK: Getters
     // region: Getters
     pub fn get_parent(&self) -> Option<Body> {
         if let Some(content) = self.parent.upgrade() {
@@ -360,7 +359,6 @@ impl Body {
     }
     // endregion: Getters
 
-    // MARK: Setters
     // region: Setters
     pub fn set_parent(&mut self, parent: &Body) {
         self.parent = Rc::downgrade(&parent.content);
@@ -570,8 +568,8 @@ impl Body {
 
 #[cfg(test)]
 mod tests {
-    // region: Using
     use itertools::Itertools;
+
     use super::*;
     use crate::{
         core::{
@@ -589,42 +587,11 @@ mod tests {
         },
     };
 
-
     fn body_from_content(content: BodyContent) -> Body {
         Body {
             content: Rc::new(RefCell::new(content)),
             parent: Weak::new(),
         }
-    }
-
-    #[test]
-    fn set_angle_should_be_able_to_mutate_the_body_not_updating_velocity() {
-        // Arrange
-        let mut content = BodyContent::default_contant();
-        content.angle = 42.;
-
-        let mut parts = [1., 2.]
-            .iter()
-            .map(|increase| {
-                let mut part_content = content.clone();
-                part_content.id = common::next_id();
-                
-                part_content.vertices = vec_vector_to_vec_vertex(test_square())
-                    .iter_mut()
-                    .map(|vertex| {
-                        vertex.set_x(vertex.get_x() + increase);
-                        vertex.set_y(vertex.get_y() + increase);
-                        vertex.clone()
-                    })
-                    .collect_vec();
-                body_from_content(part_content)
-            })
-            .collect_vec();
-
-
-        // Act
-
-        // Assert   
     }
 
     #[test]
