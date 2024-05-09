@@ -9,8 +9,19 @@ pub trait XY {
         self.set_y(xy.get_y());
     }
     fn add_xy(&mut self, xy: &impl XY) {
-        self.set_x(self.get_x() + xy.get_x());
-        self.set_y(self.get_y() + xy.get_y());
+        self.add_x(xy.get_x());
+        self.add_y(xy.get_y());
+    }
+    fn add_x_y(&mut self, x: f64, y: f64) {
+        self.add_x(x);
+        self.add_y(y);
+    }
+    fn add_x(&mut self, x: f64) {
+        self.set_x(self.get_x() + x);
+    }
+
+    fn add_y(&mut self, y: f64) {
+        self.set_y(self.get_y() + y);
     }
 }
 

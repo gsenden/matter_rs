@@ -45,7 +45,7 @@ pub fn from_vertices(vertices: &Vec<Vertex>) -> Vec<Vertex> {
     axes.values
 }
 
-fn rotate(axes: &mut Vec<Vertex>, angle: f64) {
+pub fn rotate(axes: &mut Vec<Vertex>, angle: f64) {
     let cos = angle.cos();
     let sin = angle.sin();
 

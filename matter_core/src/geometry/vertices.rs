@@ -306,10 +306,9 @@ pub fn chamfer(
 
         let mut index = 0_usize;
         while (index as f64) < precision {
-            let vector = vector::add(
-                &vector::rotate(&radius_vector, theta * index as f64),
-                &scaled_vertex,
-            );
+            let mut rotated = radius_vector.clone();
+            vector::rotate(&mut rotated, theta * index as f64);
+            let vector = vector::add(&rotated, &scaled_vertex);
             new_vertices.push(Vertex::from_vector(
                 vertex.body.clone(),
                 &vector,
@@ -425,6 +424,22 @@ pub fn is_convex(vertices: &Vec<Vertex>) -> Option<bool> {
     }
 }
 
+pub fn rotate(vertices: &mut Vec<Vertex>, angle: f64, point: &impl XY) {
+    if angle == 0. {
+        return;
+    }
+
+    let cos = f64::cos(angle);
+    let sin = f64::sin(angle);
+
+    for vertex in vertices.iter_mut() {
+        let dx = vertex.x - point.get_x();
+        let dy = vertex.y - point.get_y();
+        vertex.x = point.get_x() + (dx * cos - dy * sin);
+        vertex.y = point.get_y() + (dx * sin + dy * cos);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::{
@@ -432,13 +447,31 @@ mod tests {
         test_utils::{
             common_test_utils::assert_float,
             geometry_test_utils::{
-                assert_xy, test_shape_convex, test_shape_non_convex, test_square_with_decimals,
-                test_square_with_decimals_signed, vec_vector_to_vec_vertex,
+                assert_xy, test_shape_convex, test_shape_non_convex, test_square,
+                test_square_with_decimals, test_square_with_decimals_signed,
+                vec_vector_to_vec_vertex,
             },
         },
     };
 
     use super::*;
+
+    #[test]
+    fn rotate_should_rotate_the_vertices_in_place() {
+        // Arrange
+        let mut vertices = vec_vector_to_vec_vertex(test_square());
+        let angle = 37.;
+        let point = vector::create(42., 42.);
+
+        // Act
+        rotate(&mut vertices, angle, &point);
+
+        // Assert
+        assert_xy(&vertices[0], -15.767039597396057, 37.0030873378779);
+        assert_xy(&vertices[1], -14.236211493505373, 35.716011071163905);
+        assert_xy(&vertices[2], -12.94913522679137, 37.24683917505459);
+        assert_xy(&vertices[3], -14.479963330682054, 38.533915441768585);
+    }
 
     #[test]
     fn is_convex_should_return_none_for_vertices_with_z_0() {

@@ -44,19 +44,20 @@ pub fn magnitude_squared(vector: &impl XY) -> f64 {
     vector.get_x().powi(2) + vector.get_y().powi(2)
 }
 
-pub fn rotate(vector: &impl XY, angle: f64) -> Vector {
+pub fn rotate(vector: &mut impl XY, angle: f64) {
     let point = create(0.0, 0.0);
-    rotate_about(vector, angle, &point)
+    rotate_about(vector, angle, &point);
 }
 
-pub fn rotate_about(vector: &impl XY, angle: f64, point: &impl XY) -> Vector {
+pub fn rotate_about(vector: &mut impl XY, angle: f64, point: &impl XY) {
     let cos = angle.cos();
     let sin = angle.sin();
     let x = point.get_x()
         + ((vector.get_x() - point.get_x()) * cos - (vector.get_y() - point.get_y()) * sin);
     let y = point.get_y()
         + ((vector.get_x() - point.get_x()) * sin + (vector.get_y() - point.get_y()) * cos);
-    create(x, y)
+    vector.set_x(x);
+    vector.set_y(y);
 }
 
 pub fn normalise(vector: &impl XY) -> Vector {
@@ -286,28 +287,28 @@ mod tests {
     #[test]
     fn rotate_about_should_mutate_to_valid_result() {
         // Arrange
-        let vector: Vector = vector::create(10.0, 2.0);
+        let mut vector: Vector = vector::create(10.0, 2.0);
         let point = vector::create(2.0, 2.0);
         let angle = -2_f64;
 
         // Act
-        let result = vector::rotate_about(&vector, angle, &point);
+        vector::rotate_about(&mut vector, angle, &point);
 
         // Assert
-        assert_xy(&result, -1.3291746923771393_f64, -5.274379414605454_f64);
+        assert_xy(&vector, -1.3291746923771393_f64, -5.274379414605454_f64);
     }
 
     #[test]
     fn rotate_should_mutate_to_valid_result() {
         // Arrange
-        let vector: Vector = vector::create(10.0, 2.0);
+        let mut vector: Vector = vector::create(10.0, 2.0);
         let angle = -2_f64;
 
         // Act
-        let result = vector::rotate(&vector, angle);
+        vector::rotate(&mut vector, angle);
 
         // Assert
-        assert_xy(&result, -2.3428735118200605_f64, -9.925267941351102_f64);
+        assert_xy(&vector, -2.3428735118200605_f64, -9.925267941351102_f64);
     }
 
     #[test]

@@ -561,6 +561,48 @@ impl Body {
             content.position.add_xy(centre);
         }
     }
+
+    fn set_angle(&mut self, angle: f64, update_velocity: Option<bool>) {
+        let update_velocity = update_velocity.unwrap_or(false);
+
+        let mut delta = 0.;
+        let mut body_position = Position::new(0., 0.);
+        let mut body_velocity = Velocity::new(0., 0.);
+        let mut body_id: Uuid = Uuid::new_v4();
+
+        {
+            let mut content = content_mut!(self);
+            delta = angle - content.angle;
+
+            if update_velocity {
+                content.angle_prev = content.angle;
+                content.angular_velocity = delta;
+                content.angular_speed = f64::abs(delta);
+            } else {
+                content.angle_prev += delta;
+            }
+
+            body_position = content.position;
+            body_velocity = content.velocity;
+            body_id = content.id;
+        }
+
+        for part in &mut self.get_parts() {
+            let mut part_content = content_mut!(part);
+            part_content.angle += delta;
+            vertices::rotate(&mut part_content.vertices, delta, &body_position);
+            if let Some(axes) = &mut part_content.axes {
+                axes::rotate(axes, delta);
+            }
+            let vertices = part_content.vertices.clone();
+            if let Some(bounds) = &mut part_content.bounds {
+                bounds::update(bounds, &vertices, &Some(&body_velocity));
+            }
+            if part_content.id != body_id {
+                vector::rotate_about(&mut part_content.position, delta, &body_position);
+            }
+        }
+    }
     // endregion: Setters
 }
 
@@ -592,6 +634,143 @@ mod tests {
             content: Rc::new(RefCell::new(content)),
             parent: Weak::new(),
         }
+    }
+
+    #[test]
+    fn set_angle_should_be_able_to_set_the_angle_on_a_default_body_not_updating_the_velocity() {
+        // Arrange
+        let mut content = BodyContent::default_contant();
+        content.id = common::next_id();
+        content.angle = 42.;
+        content.angle_prev = 41.;
+        content.axes = Some(vec![
+            Vertex::new(None, 1., 1., 0, false),
+            Vertex::new(None, -1., -1., 1, false),
+        ]);
+        content.position = Position::new(0., 0.);
+        content.bounds = Some(test_bounds());
+        content.vertices = vec_vector_to_vec_vertex(test_square());
+
+        let mut parts = [1., 2.]
+            .iter()
+            .map(|increase| {
+                let mut part_content = content.clone();
+                part_content.id = common::next_id();
+                part_content.angle += increase;
+                part_content.angle_prev += increase;
+                if let Some(axes) = &mut part_content.axes {
+                    axes[0].add_x_y(*increase, *increase);
+                    axes[1].add_x_y(-1. * increase, -1. * increase);
+                }
+                part_content.bounds = Some(test_bounds());
+                part_content.position = Position::new(*increase, *increase);
+                part_content.vertices = vec_vector_to_vec_vertex(test_square())
+                    .iter_mut()
+                    .map(|vertex| {
+                        vertex.set_x(vertex.get_x() + increase);
+                        vertex.set_y(vertex.get_y() + increase);
+                        vertex.clone()
+                    })
+                    .collect_vec();
+                body_from_content(part_content)
+            })
+            .collect_vec();
+        content.parts = Some(parts);
+        let mut body = body_from_content(content);
+
+        let update_velocity = None;
+
+        // Act
+        body.set_angle(37., update_velocity);
+
+        let part = body.get_parts()[0].clone();
+        assert_float(part.get_angle(), 37.);
+        assert_float(part.get_angle_prev(), 36.);
+        assert_xy(
+            &part.get_axes().unwrap()[0],
+            -0.6752620891999122,
+            1.2425864601263648,
+        );
+        assert_xy(
+            &part.get_axes().unwrap()[1],
+            0.6752620891999122,
+            -1.2425864601263648,
+        );
+        assert_bounds(
+            &part.get_bounds().unwrap(),
+            -2.593110638526189,
+            1.2425864601263648,
+            -0.10793771827345966,
+            3.7277593803790943,
+        );
+        assert_xy(&part.get_position(), 0., 0.);
+        let vertices = part.get_vertices();
+        assert_xy(&vertices[0], -0.6752620891999122, 1.2425864601263648);
+        assert_xy(&vertices[1], -0.10793771827345966, 3.1604350094526414);
+        assert_xy(&vertices[2], -2.0257862675997362, 3.7277593803790943);
+        assert_xy(&vertices[3], -2.593110638526189, 1.8099108310528171);
+
+        let part = body.get_parts()[1].clone();
+        assert_float(part.get_angle(), 38.);
+        assert_float(part.get_angle_prev(), 42.);
+        assert_xy(
+            &part.get_axes().unwrap()[0],
+            -1.3505241783998243,
+            2.4851729202527295,
+        );
+        assert_xy(
+            &part.get_axes().unwrap()[1],
+            1.3505241783998243,
+            -2.4851729202527295,
+        );
+        assert_bounds(
+            &part.get_bounds().unwrap(),
+            -3.2683727277261014,
+            2.4851729202527295,
+            -0.7831998074733719,
+            4.970345840505459,
+        );
+        assert_xy(
+            &part.get_position(),
+            -0.6752620891999122,
+            1.2425864601263648,
+        );
+        let vertices = part.get_vertices();
+        assert_xy(&vertices[0], -1.3505241783998243, 2.4851729202527295);
+        assert_xy(&vertices[1], -0.7831998074733719, 4.403021469579007);
+        assert_xy(&vertices[2], -2.7010483567996486, 4.970345840505459);
+        assert_xy(&vertices[3], -3.2683727277261014, 3.052497291179182);
+
+        let part = body.get_parts()[2].clone();
+        assert_float(part.get_angle(), 39.);
+        assert_float(part.get_angle_prev(), 43.);
+        assert_xy(
+            &part.get_axes().unwrap()[0],
+            -2.0257862675997362,
+            3.7277593803790943,
+        );
+        assert_xy(
+            &part.get_axes().unwrap()[1],
+            2.0257862675997362,
+            -3.7277593803790943,
+        );
+        assert_bounds(
+            &part.get_bounds().unwrap(),
+            -3.9436348169260134,
+            3.7277593803790943,
+            -1.458461896673284,
+            6.212932300631824,
+        );
+        assert_xy(
+            &part.get_position(),
+            -1.3505241783998243,
+            2.4851729202527295,
+        );
+        let vertices = part.get_vertices();
+        assert_xy(&vertices[0], -2.0257862675997362, 3.7277593803790943);
+        assert_xy(&vertices[1], -1.458461896673284, 5.645607929705371);
+        assert_xy(&vertices[2], -3.376310445999561, 6.212932300631824);
+        assert_xy(&vertices[3], -3.9436348169260134, 4.295083751305547);
     }
 
     #[test]
