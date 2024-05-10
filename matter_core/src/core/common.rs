@@ -51,3 +51,11 @@ pub fn clamp(value: f64, min: f64, max: f64) -> f64 {
 pub fn next_id() -> uuid::Uuid {
     Uuid::new_v4()
 }
+
+pub fn sign(value: f64) -> i8 {
+    if value < 0. {
+        -1
+    } else {
+        1
+    }
+}

@@ -668,6 +668,11 @@ impl Body {
         content.angular_speed = f64::abs(content.angular_velocity);
     }
 
+    pub fn set_angular_speed(&mut self, speed: f64) {
+        let velocity = common::sign(self.get_angular_velocity()) as f64 * speed;
+        self.set_angular_velocity(velocity);
+    }
+
     // endregion: Setters
 }
 
@@ -699,6 +704,27 @@ mod tests {
             content: Rc::new(RefCell::new(content)),
             parent: Weak::new(),
         }
+    }
+
+    #[test]
+    fn set_angular_speed_be_able_to_set_the_angular_speed_on_a_body() {
+        // Arrange
+        let mut content = BodyContent::default_contant();
+        content.angle = 42.;
+        content.angle_prev = 41.;
+        let mut body = body_from_content(content);
+        let speed = 37.;
+
+        // Act
+        body.set_angular_speed(speed);
+
+        // Assert
+        assert_float(body.get_angle(), 42.);
+        assert_float(body.get_angle_prev(), 5.);
+        assert_float(body.get_angular_velocity_prop(), 37.);
+        assert_float(body.get_angular_velocity(), 37.);
+        assert_float(body.get_angular_speed_prop(), 37.);
+        assert_float(body.get_angular_speed(), 37.);
     }
 
     #[test]
