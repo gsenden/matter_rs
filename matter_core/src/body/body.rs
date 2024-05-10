@@ -284,12 +284,21 @@ impl Body {
         vector::magnitude(&self.get_velocity())
     }
 
-    fn get_angular_speed_prop(&self) -> f64 {
+    pub fn get_angular_speed_prop(&self) -> f64 {
         content!(self).angular_speed
     }
 
-    fn get_angular_velocity_prop(&self) -> f64 {
+    pub fn get_angular_speed(&self) -> f64 {
+        f64::abs(self.get_angular_velocity())
+    }
+
+    pub fn get_angular_velocity_prop(&self) -> f64 {
         content!(self).angular_velocity
+    }
+
+    pub fn get_angular_velocity(&self) -> f64 {
+        let content = content!(self);
+        (content.angle - content.angle_prev) * BASE_DELTA / content.delta_time
     }
 
     pub fn get_is_sensor(&self) -> bool {
@@ -708,7 +717,9 @@ mod tests {
         assert_float(body.get_angle(), 42.);
         assert_float(body.get_angle_prev(), 5.);
         assert_float(body.get_angular_velocity_prop(), 37.);
+        assert_float(body.get_angular_velocity(), 37.);
         assert_float(body.get_angular_speed_prop(), 37.);
+        assert_float(body.get_angular_speed(), 37.);
     }
 
     #[test]
