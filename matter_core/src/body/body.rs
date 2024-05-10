@@ -651,6 +651,14 @@ impl Body {
         self.set_velocity(&velocity)
     }
 
+    pub fn set_angular_velocity(&mut self, velocity: f64) {
+        let mut content = content_mut!(self);
+        let time_scale = content.delta_time / BASE_DELTA;
+        content.angle_prev = content.angle - velocity * time_scale;
+        content.angular_velocity = (content.angle - content.angle_prev) / time_scale;
+        content.angular_speed = f64::abs(content.angular_velocity);
+    }
+
     // endregion: Setters
 }
 
@@ -685,7 +693,26 @@ mod tests {
     }
 
     #[test]
-    fn should_be_able_to_set_the_speed_on_a_body() {
+    fn set_angular_velocity_should_be_able_to_set_the_angular_velocity_on_a_body() {
+        // Arrange
+        let mut content = BodyContent::default_contant();
+        content.angle = 42.;
+        content.angle_prev = 41.;
+        let mut body = body_from_content(content);
+        let velocity = 37.;
+
+        // Act
+        body.set_angular_velocity(velocity);
+
+        // Assert
+        assert_float(body.get_angle(), 42.);
+        assert_float(body.get_angle_prev(), 5.);
+        assert_float(body.get_angular_velocity_prop(), 37.);
+        assert_float(body.get_angular_speed_prop(), 37.);
+    }
+
+    #[test]
+    fn set_speed_should_be_able_to_set_the_speed_on_a_body() {
         // Arrange
         let mut content = BodyContent::default_contant();
         content.position = Position::new(37., 37.);
