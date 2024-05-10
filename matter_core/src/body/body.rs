@@ -1,3 +1,5 @@
+// MARK: Usings
+// region: Usings
 use super::{body_option::BodyOption, body_properties::BodyProperties};
 use crate::{
     core::{
@@ -24,7 +26,9 @@ use std::{
     rc::{Rc, Weak},
 };
 use uuid::Uuid;
+// region: Usings
 
+// MARK: consts
 const INERTIA_SCALE: f64 = 4.;
 const NEXT_COLLIDING_GROUP_ID: i32 = 1;
 const NEXT_NON_COLLIDING_GROUP_ID: i32 = -1;
@@ -32,13 +36,12 @@ const NEXT_CATEGORY: u16 = 1;
 const BASE_DELTA: f64 = 1000. / 60.;
 const TIME_CORRECTION: bool = true;
 
+// MARK: Structs
 #[derive(Clone)]
 pub struct Body {
     content: Rc<RefCell<BodyContent>>,
     parent: Weak<RefCell<BodyContent>>,
 }
-
-//let this = self.content.as_ref().borrow();
 
 #[derive(Clone)]
 pub struct BodyContent {
@@ -88,6 +91,7 @@ pub struct BodyContent {
     _original: Option<Box<Body>>,
 }
 
+// MARK: Default Body
 impl BodyContent {
     fn default_contant() -> Self {
         BodyContent {
@@ -138,6 +142,8 @@ impl BodyContent {
     }
 }
 
+// MARK: Content Macro's
+// region: Content Macro's
 macro_rules! content {
     ($a:expr) => {
         $a.content.as_ref().borrow()
@@ -149,6 +155,7 @@ macro_rules! content_mut {
         $a.content.as_ref().borrow_mut()
     };
 }
+// endregion: Content Macro's
 
 impl Body {
     pub fn default_body() -> Self {
@@ -173,7 +180,9 @@ impl Body {
         }
     }
 
+    // MARK: Getters
     // region: Getters
+
     pub fn get_parent(&self) -> Option<Body> {
         if let Some(content) = self.parent.upgrade() {
             Some(Body {
@@ -388,6 +397,7 @@ impl Body {
     }
     // endregion: Getters
 
+    // MARK: Setters
     // region: Setters
     pub fn set_parent(&mut self, parent: &Body) {
         self.parent = Rc::downgrade(&parent.content);
@@ -674,6 +684,41 @@ impl Body {
     }
 
     // endregion: Setters
+
+    // MARK: Actions
+    // region: Actions
+    pub fn translate(&mut self, tranlation: &impl XY, update_velocity: Option<bool>) {
+        let mut position: Position = Position::new(0., 0.);
+        {
+            let content = content!(self);
+            position = Position::new_from(&vector::add(&content.position, tranlation));
+        }
+        self.set_position(position, update_velocity);
+    }
+
+    pub fn rotate(
+        &mut self,
+        rotation: f64,
+        point: Option<&impl XY>,
+        update_velocity: Option<bool>,
+    ) {
+        if point.is_none() {
+            self.set_angle(self.get_angle() + rotation, update_velocity);
+        } else if let Some(point) = point {
+            let cos = f64::cos(rotation);
+            let sin = f64::sin(rotation);
+            let dx = self.get_position().get_x() - point.get_x();
+            let dy = self.get_position().get_y() - point.get_y();
+            let x = point.get_x() + (dx * cos - dy * sin);
+            let y = point.get_y() + (dx * sin + dy * cos);
+            let position = Position::new(x, y);
+
+            self.set_position(position, update_velocity);
+            self.set_angle(self.get_angle() + rotation, update_velocity);
+        }
+    }
+
+    // endregion: Actions
 }
 
 //MARK: Tests
@@ -704,6 +749,309 @@ mod tests {
             content: Rc::new(RefCell::new(content)),
             parent: Weak::new(),
         }
+    }
+
+    #[test]
+    fn rotate_should_be_able_to_rotate_a_body_with_a_point() {
+        // Arrange
+        let mut content = BodyContent::default_contant();
+        content.id = common::next_id();
+        content.angle = 42.;
+        content.angle_prev = 41.;
+        content.axes = Some(vec![
+            Vertex::new(None, 1., 1., 0, false),
+            Vertex::new(None, -1., -1., 1, false),
+        ]);
+        content.position = Position::new(2., 2.);
+        content.position_prev = Some(Position::new(1., 1.));
+        content.bounds = Some(test_bounds());
+        content.velocity = Velocity::new(42., 42.);
+        content.vertices = vec_vector_to_vec_vertex(test_square());
+
+        let mut parts = [1., 2.]
+            .iter()
+            .map(|increase| {
+                let mut part_content = content.clone();
+                part_content.id = common::next_id();
+                part_content.angle += increase;
+                part_content.angle_prev += increase;
+                if let Some(axes) = &mut part_content.axes {
+                    axes[0].add_x_y(*increase, *increase);
+                    axes[1].add_x_y(-1. * increase, -1. * increase);
+                }
+                part_content.bounds = Some(test_bounds());
+                part_content.position = Position::new(*increase, *increase);
+                part_content.vertices = vec_vector_to_vec_vertex(test_square())
+                    .iter_mut()
+                    .map(|vertex| {
+                        vertex.set_x(vertex.get_x() + increase);
+                        vertex.set_y(vertex.get_y() + increase);
+                        vertex.clone()
+                    })
+                    .collect_vec();
+                body_from_content(part_content)
+            })
+            .collect_vec();
+        content.parts = Some(parts);
+        let mut body = body_from_content(content);
+
+        let rotation = 37.;
+
+        let point = Position::new(93., 94.);
+        let point = Some(&point);
+        let update_velocity: Option<bool> = None;
+
+        // Act
+        body.rotate(rotation, point, update_velocity);
+
+        let part = body.get_parts()[0].clone();
+        assert_float(part.get_angle(), 79.);
+        assert_float(part.get_angle_prev(), 78.);
+        let axes = part.get_axes().unwrap();
+        assert_xy(&axes[0], 1.408952185302343, 0.1218759185883439);
+        assert_xy(&axes[1], -1.408952185302343, -0.1218759185883439);
+        assert_bounds(
+            &part.get_bounds().unwrap(),
+            -37.26713918117254,
+            80.73492517121302,
+            7.550765189432141,
+            125.5528295418177,
+        );
+        assert_xy(&part.get_position(), -35.8581869958702, 82.14387735651536);
+        let vertices = part.get_vertices();
+        assert_xy(&vertices[0], -37.26713918117254, 82.02200143792702);
+        assert_xy(&vertices[1], -35.736311077281854, 80.73492517121302);
+        assert_xy(&vertices[2], -34.44923481056786, 82.2657532751037);
+        assert_xy(&vertices[3], -35.98006291445854, 83.5528295418177);
+
+        let part = body.get_parts()[1].clone();
+        assert_float(part.get_angle(), 80.);
+        assert_float(part.get_angle_prev(), 42.);
+        let axes = part.get_axes().unwrap();
+        assert_xy(&axes[0], 2.817904370604686, 0.2437518371766878);
+        assert_xy(&axes[1], -2.817904370604686, -0.2437518371766878);
+        assert_bounds(
+            &part.get_bounds().unwrap(),
+            -35.8581869958702,
+            80.85680108980137,
+            8.959717374734488,
+            125.67470546040605,
+        );
+        assert_xy(&part.get_position(), -37.26713918117254, 82.02200143792702);
+        let vertices = part.get_vertices();
+        assert_xy(&vertices[0], -35.8581869958702, 82.14387735651536);
+        assert_xy(&vertices[1], -34.327358891979515, 80.85680108980137);
+        assert_xy(&vertices[2], -33.04028262526551, 82.38762919369205);
+        assert_xy(&vertices[3], -34.5711107291562, 83.67470546040605);
+
+        let part = body.get_parts()[2].clone();
+        assert_float(part.get_angle(), 81.);
+        assert_float(part.get_angle_prev(), 43.);
+        let axes = part.get_axes().unwrap();
+        assert_xy(&axes[0], 4.226856555907029, 0.3656277557650318);
+        assert_xy(&axes[1], -4.226856555907029, -0.3656277557650318);
+        let bounds = part.get_bounds().unwrap();
+        assert_bounds(
+            &bounds,
+            -34.44923481056786,
+            80.97867700838971,
+            10.368669560036828,
+            125.79658137899439,
+        );
+        assert_xy(&part.get_position(), -35.8581869958702, 82.14387735651536);
+        let vertices = part.get_vertices();
+        assert_xy(&vertices[0], -34.44923481056786, 82.2657532751037);
+        assert_xy(&vertices[1], -32.91840670667717, 80.97867700838971);
+        assert_xy(&vertices[2], -31.631330439963172, 82.5095051122804);
+        assert_xy(&vertices[3], -33.162158543853856, 83.79658137899439);
+    }
+
+    #[test]
+    fn rotate_should_be_able_to_rotate_a_body_without_a_point() {
+        // Arrange
+        let mut content = BodyContent::default_contant();
+        content.id = common::next_id();
+        content.angle = 42.;
+        content.angle_prev = 41.;
+        content.axes = Some(vec![
+            Vertex::new(None, 1., 1., 0, false),
+            Vertex::new(None, -1., -1., 1, false),
+        ]);
+        content.position = Position::new(2., 2.);
+        content.position_prev = Some(Position::new(1., 1.));
+        content.bounds = Some(test_bounds());
+        content.velocity = Velocity::new(42., 42.);
+        content.vertices = vec_vector_to_vec_vertex(test_square());
+
+        let mut parts = [1., 2.]
+            .iter()
+            .map(|increase| {
+                let mut part_content = content.clone();
+                part_content.id = common::next_id();
+                part_content.angle += increase;
+                part_content.angle_prev += increase;
+                if let Some(axes) = &mut part_content.axes {
+                    axes[0].add_x_y(*increase, *increase);
+                    axes[1].add_x_y(-1. * increase, -1. * increase);
+                }
+                part_content.bounds = Some(test_bounds());
+                part_content.position = Position::new(*increase, *increase);
+                part_content.vertices = vec_vector_to_vec_vertex(test_square())
+                    .iter_mut()
+                    .map(|vertex| {
+                        vertex.set_x(vertex.get_x() + increase);
+                        vertex.set_y(vertex.get_y() + increase);
+                        vertex.clone()
+                    })
+                    .collect_vec();
+                body_from_content(part_content)
+            })
+            .collect_vec();
+        content.parts = Some(parts);
+        let mut body = body_from_content(content);
+
+        let rotation = 37.;
+        let point: Option<&Position> = None;
+        let update_velocity: Option<bool> = None;
+
+        // Act
+        body.rotate(rotation, point, update_velocity);
+
+        let part = body.get_parts()[0].clone();
+        assert_float(part.get_angle(), 79.);
+        assert_float(part.get_angle_prev(), 78.);
+        let axes = part.get_axes().unwrap();
+        assert_xy(&axes[0], 1.408952185302343, 0.1218759185883439);
+        assert_xy(&axes[1], -1.408952185302343, -0.1218759185883439);
+        assert_bounds(
+            &part.get_bounds().unwrap(),
+            0.591047814697657,
+            0.591047814697657,
+            45.40895218530234,
+            45.40895218530234,
+        );
+        assert_xy(&part.get_position(), 2., 2.);
+        let vertices = part.get_vertices();
+        assert_xy(&vertices[0], 0.591047814697657, 1.8781240814116562);
+        assert_xy(&vertices[1], 2.121875918588344, 0.591047814697657);
+        assert_xy(&vertices[2], 3.408952185302343, 2.121875918588344);
+        assert_xy(&vertices[3], 1.8781240814116562, 3.408952185302343);
+
+        let part = body.get_parts()[1].clone();
+        assert_float(part.get_angle(), 80.);
+        assert_float(part.get_angle_prev(), 42.);
+        let axes = part.get_axes().unwrap();
+        assert_xy(&axes[0], 2.817904370604686, 0.2437518371766878);
+        assert_xy(&axes[1], -2.817904370604686, -0.2437518371766878);
+        assert_bounds(
+            &part.get_bounds().unwrap(),
+            2.,
+            0.712923733286001,
+            46.81790437060469,
+            45.530828103890684,
+        );
+        assert_xy(&part.get_position(), 0.591047814697657, 1.8781240814116562);
+        let vertices = part.get_vertices();
+        assert_xy(&vertices[0], 2., 2.);
+        assert_xy(&vertices[1], 3.530828103890687, 0.712923733286001);
+        assert_xy(&vertices[2], 4.817904370604686, 2.2437518371766876);
+        assert_xy(&vertices[3], 3.287076266713999, 3.530828103890687);
+
+        let part = body.get_parts()[2].clone();
+        assert_float(part.get_angle(), 81.);
+        assert_float(part.get_angle_prev(), 43.);
+        let axes = part.get_axes().unwrap();
+        assert_xy(&axes[0], 4.226856555907029, 0.3656277557650318);
+        assert_xy(&axes[1], -4.226856555907029, -0.3656277557650318);
+        let bounds = part.get_bounds().unwrap();
+        assert_bounds(
+            &bounds,
+            3.408952185302343,
+            0.834799651874345,
+            48.22685655590703,
+            45.65270402247903,
+        );
+        assert_xy(&part.get_position(), 2., 2.);
+        let vertices = part.get_vertices();
+        assert_xy(&vertices[0], 3.408952185302343, 2.121875918588344);
+        assert_xy(&vertices[1], 4.939780289193029, 0.834799651874345);
+        assert_xy(&vertices[2], 6.226856555907029, 2.365627755765032);
+        assert_xy(&vertices[3], 4.696028452016342, 3.6527040224790306);
+    }
+
+    #[test]
+    fn translate_should_be_able_to_translate_a_body() {
+        // Arrange
+        let mut content = BodyContent::default_contant();
+        content.id = common::next_id();
+        content.position = Position::new(2., 2.);
+        content.position_prev = Some(Position::new(1., 1.));
+        content.bounds = Some(test_bounds());
+        content.vertices = vec_vector_to_vec_vertex(test_square());
+        content.velocity = Velocity::new(42., 42.);
+
+        let mut parts = [1., 2.]
+            .iter()
+            .map(|increase| {
+                let mut part_content = content.clone();
+                part_content.id = common::next_id();
+                part_content.bounds = Some(test_bounds());
+                part_content.position = Position::new(*increase, *increase);
+                part_content.vertices = vec_vector_to_vec_vertex(test_square())
+                    .iter_mut()
+                    .map(|vertex| {
+                        vertex.set_x(vertex.get_x() + increase);
+                        vertex.set_y(vertex.get_y() + increase);
+                        vertex.clone()
+                    })
+                    .collect_vec();
+                body_from_content(part_content)
+            })
+            .collect_vec();
+        content.parts = Some(parts);
+        let mut body = body_from_content(content);
+
+        let translation = Position::new(37., 38.);
+        let update_velocity = None;
+
+        // Act
+        body.translate(&translation, update_velocity);
+
+        // Assert
+        assert_xy(&body.get_position(), 39., 40.);
+        assert_xy(&body.get_position_prev().unwrap(), 38., 39.);
+        assert_xy(&body.get_velocity_prop(), 42., 42.);
+
+        let parts = &body.get_parts();
+        let part = parts[0].clone();
+        assert_bounds(&part.get_bounds().unwrap(), 38., 39., 82., 83.);
+        assert_xy(&part.get_position(), 39., 40.);
+        assert_xy(&part.get_velocity_prop(), 42., 42.);
+        let vertices = part.get_vertices();
+        assert_xy(&vertices[0], 38., 39.);
+        assert_xy(&vertices[1], 40., 39.);
+        assert_xy(&vertices[2], 40., 41.);
+        assert_xy(&vertices[3], 38., 41.);
+
+        let part = parts[1].clone();
+        assert_bounds(&part.get_bounds().unwrap(), 39., 40., 83., 84.);
+        assert_xy(&part.get_position(), 38., 39.);
+        assert_xy(&part.get_velocity_prop(), 42., 42.);
+        let vertices = part.get_vertices();
+        assert_xy(&vertices[0], 39., 40.);
+        assert_xy(&vertices[1], 41., 40.);
+        assert_xy(&vertices[2], 41., 42.);
+        assert_xy(&vertices[3], 39., 42.);
+
+        let part = parts[2].clone();
+        assert_bounds(&part.get_bounds().unwrap(), 40., 41., 84., 85.);
+        assert_xy(&part.get_position(), 39., 40.);
+        assert_xy(&part.get_velocity_prop(), 42., 42.);
+        let vertices = part.get_vertices();
+        assert_xy(&vertices[0], 40., 41.);
+        assert_xy(&vertices[1], 42., 41.);
+        assert_xy(&vertices[2], 42., 43.);
+        assert_xy(&vertices[3], 40., 43.);
     }
 
     #[test]
@@ -778,7 +1126,7 @@ mod tests {
     }
 
     #[test]
-    fn should_be_able_to_set_the_velocity_on_a_body() {
+    fn set_velocity_should_be_able_to_set_the_velocity_on_a_body() {
         // Arrange
         let mut content = BodyContent::default_contant();
         content.position = Position::new(37., 37.);
