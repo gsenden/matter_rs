@@ -4,7 +4,7 @@ use std::vec;
 use uuid::Uuid;
 
 use crate::body::body::Body;
-use crate::core::xy::XY;
+use crate::core::xy::{XYNew, XY};
 
 use super::super::core::common;
 use super::vector::{self, Vector};
@@ -141,7 +141,8 @@ pub fn from_path(path: &str, body: Option<Body>) -> Result<Vec<Vertex>, FromPath
     }
 }
 
-pub fn area(vertices: &Vec<Vertex>, signed: bool) -> f64 {
+pub fn area(vertices: &Vec<Vertex>, signed: Option<bool>) -> f64 {
+    let signed = signed.unwrap_or(false);
     let mut index2 = vertices.len() - 1;
     let mut area = 0.0_f64;
 
@@ -158,7 +159,7 @@ pub fn area(vertices: &Vec<Vertex>, signed: bool) -> f64 {
 }
 
 pub fn centre(vertices: &Vec<Vertex>) -> Vector {
-    let area = area(&vertices, true);
+    let area = area(&vertices, Some(true));
     let mut centre = vector::create(0.0, 0.0);
     for (index, vertex) in vertices.iter().enumerate() {
         let index2 = (index + 1) % vertices.len();
@@ -228,10 +229,11 @@ pub fn contains(vertices: &Vec<Vertex>, point: &impl XY) -> bool {
     true
 }
 
-pub fn scale(vertices: &mut Vec<Vertex>, scale_x: f64, scale_y: f64, point: Option<&Vector>) {
-    let point = match point {
-        Some(point) => *point,
-        None => centre(vertices),
+pub fn scale(vertices: &mut Vec<Vertex>, scale_x: f64, scale_y: f64, point: Option<&impl XY>) {
+    let point = if let Some(p) = point {
+        Vector::new_from(p)
+    } else {
+        centre(vertices)
     };
 
     if scale_x == 1.0 && scale_y == 1.0 {
@@ -775,7 +777,7 @@ mod tests {
         // Arrange
         let points = vec_vector_to_vec_vertex(test_square_with_decimals());
         //let vertices = create(points);
-        let signed = false;
+        let signed = None;
 
         // Act
         let result: f64 = area(&points, signed);
@@ -788,7 +790,7 @@ mod tests {
     fn area_should_calculate_a_valid_value_with_signed_true() {
         // Arrange
         let points = vec_vector_to_vec_vertex(test_square_with_decimals_signed());
-        let signed = true;
+        let signed = Some(true);
 
         // Act
         let result: f64 = area(&points, signed);

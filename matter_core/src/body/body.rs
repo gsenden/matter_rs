@@ -4,7 +4,7 @@ use super::{body_option::BodyOption, body_properties::BodyProperties};
 use crate::{
     core::{
         collision_filter::CollisionFilter,
-        common::{self, ShapeType},
+        common::{self, OrderedHashMap, ShapeType},
         constraint_impulse::ConstraintImpulse,
         force::Force,
         position::{self, Position},
@@ -53,7 +53,7 @@ pub struct BodyContent {
     axes: Option<Vec<Vertex>>,
     bounds: Option<Bounds>,
     chamfer: Option<Vec<Vector>>,
-    circle_radius: f64,
+    circle_radius: Option<f64>,
     collision_filter: CollisionFilter,
     constraint_impulse: ConstraintImpulse,
     delta_time: f64,
@@ -103,7 +103,7 @@ impl BodyContent {
             axes: None,
             bounds: None,
             chamfer: None,
-            circle_radius: 0.,
+            circle_radius: None,
             collision_filter: CollisionFilter::new(1, u32::MAX, 0),
             constraint_impulse: ConstraintImpulse::new(0., 0., 0.),
             delta_time: 1000. / 60.,
@@ -374,7 +374,7 @@ impl Body {
         content!(self).chamfer.clone()
     }
 
-    pub fn get_circle_radius(&self) -> f64 {
+    pub fn get_circle_radius(&self) -> Option<f64> {
         content!(self).circle_radius
     }
 
@@ -433,7 +433,7 @@ impl Body {
             let mut content = content_mut!(self);
             content.vertices = vertices;
             content.axes = Some(axes::from_vertices(&content.vertices));
-            content.area = vertices::area(&content.vertices, false);
+            content.area = vertices::area(&content.vertices, None);
             density_area = content.density * content.area;
         }
 
@@ -683,6 +683,131 @@ impl Body {
         self.set_angular_velocity(velocity);
     }
 
+    pub fn set_area(&mut self, value: f64) {
+        let mut content = content_mut!(self);
+        content.area = value;
+    }
+
+    pub fn set_axes(&mut self, value: &Vec<Vertex>) {
+        let mut content = content_mut!(self);
+        content.axes = Some(value.clone());
+    }
+
+    pub fn set_bounds(&mut self, value: &Bounds) {
+        let mut content = content_mut!(self);
+        content.bounds = Some(value.clone());
+    }
+
+    pub fn set_chamfer(&mut self, value: &Vec<Vector>) {
+        let mut content = content_mut!(self);
+        content.chamfer = Some(value.clone());
+    }
+
+    pub fn set_circle_radius(&mut self, value: f64) {
+        let mut content = content_mut!(self);
+        content.circle_radius = Some(value);
+    }
+
+    pub fn set_collision_filter(&mut self, value: &CollisionFilter) {
+        let mut content = content_mut!(self);
+        content.collision_filter = value.clone();
+    }
+
+    pub fn set_constraint_impulse(&mut self, value: &ConstraintImpulse) {
+        let mut content = content_mut!(self);
+        content.constraint_impulse = value.clone();
+    }
+
+    pub fn set_delta_time(&mut self, value: f64) {
+        let mut content = content_mut!(self);
+        content.delta_time = value;
+    }
+
+    pub fn set_density(&mut self, value: f64) {
+        let mut content = content_mut!(self);
+        content.density = value;
+    }
+
+    pub fn set_friction_air(&mut self, value: f64) {
+        let mut content = content_mut!(self);
+        content.friction_air = value;
+    }
+
+    pub fn set_friction_static(&mut self, value: f64) {
+        let mut content = content_mut!(self);
+        content.friction_static = value;
+    }
+
+    pub fn set_friction(&mut self, value: f64) {
+        let mut content = content_mut!(self);
+        content.friction = value;
+    }
+
+    pub fn set_is_sensor(&mut self, value: bool) {
+        let mut content = content_mut!(self);
+        content.is_sensor = value;
+    }
+
+    pub fn set_is_sleeping(&mut self, value: bool) {
+        let mut content = content_mut!(self);
+        content.is_sleeping = value;
+    }
+
+    pub fn set_is_static(&mut self, value: bool) {
+        let mut content = content_mut!(self);
+        content.is_static = value;
+    }
+
+    pub fn set_motion(&mut self, value: f64) {
+        let mut content = content_mut!(self);
+        content.motion = value;
+    }
+
+    pub fn set_position_impulse(&mut self, value: &Position) {
+        let mut content = content_mut!(self);
+        content.position_impulse = value.clone();
+    }
+
+    pub fn set_render(&mut self, value: &Render) {
+        let mut content = content_mut!(self);
+        content.render = value.clone();
+    }
+
+    pub fn set_resitution(&mut self, value: f64) {
+        let mut content = content_mut!(self);
+        content.resitution = value;
+    }
+
+    pub fn set_shape_type(&mut self, value: &ShapeType) {
+        let mut content = content_mut!(self);
+        content.shape_type = value.clone();
+    }
+
+    pub fn set_sleep_threshold(&mut self, value: u32) {
+        let mut content = content_mut!(self);
+        content.sleep_threshold = value;
+    }
+
+    pub fn set_slop(&mut self, value: f64) {
+        let mut content = content_mut!(self);
+        content.slop = value;
+    }
+
+    pub fn set_time_scale(&mut self, value: u16) {
+        let mut content = content_mut!(self);
+        content.time_scale = value;
+    }
+
+    pub fn set_torque(&mut self, value: f64) {
+        let mut content = content_mut!(self);
+        content.torque = value;
+    }
+
+    pub fn set_total_contacts(&mut self, value: u32) {
+        let mut content = content_mut!(self);
+        content.total_contacts = value;
+    }
+
     // endregion: Setters
 
     // MARK: Actions
@@ -718,6 +843,81 @@ impl Body {
         }
     }
 
+    pub fn scale(&mut self, scale_x: f64, scale_y: f64, point: Option<&impl XY>) {
+        let mut total_area = 0.;
+        let mut total_inertia = 0.;
+
+        let point = if let Some(p) = point {
+            Position::new_from(p)
+        } else {
+            self.get_position()
+        };
+
+        let parent_id = self.get_id();
+        let parent_velocity = self.get_velocity_prop();
+        for part in self.get_parts().iter_mut() {
+            {
+                let mut part_content = content_mut!(part);
+                vertices::scale(&mut part_content.vertices, scale_x, scale_y, Some(&point));
+                part_content.axes = Some(axes::from_vertices(&part_content.vertices));
+                part_content.area = vertices::area(&part_content.vertices, None);
+            }
+            part.set_mass(self.get_density() * part.get_area());
+            {
+                let mut part_content = content_mut!(part);
+                let position = Position::new(
+                    part_content.position.get_x() * -1.,
+                    part_content.position.get_y() * -1.,
+                );
+                vertices::translate(&mut part_content.vertices, &position, None);
+            }
+            let inertia = INERTIA_SCALE * vertices::innertia(&part.get_vertices(), part.get_mass());
+            part.set_inertia(inertia);
+            {
+                let mut part_content = content_mut!(part);
+                let position = part_content.position.clone();
+                vertices::translate(&mut part_content.vertices, &position, None);
+            }
+            if part.get_id() != parent_id {
+                total_area += part.get_area();
+                total_inertia += part.get_inertia();
+            }
+            {
+                let mut part_content = content_mut!(part);
+                let x = point.get_x() + (part_content.position.get_x() - point.get_x()) * scale_x;
+                let y = point.get_y() + (part_content.position.get_y() - point.get_y()) * scale_y;
+                part_content.position.set_x(x);
+                part_content.position.set_y(y);
+
+                let vertices = part_content.vertices.clone();
+                if let Some(bounds) = &mut part_content.bounds {
+                    // what happens if bounds == None -> no idea. Need futher testing. ... famous last words
+                    bounds::update(bounds, &vertices, &Some(&parent_velocity));
+                }
+            }
+        }
+
+        if self.get_parts().len() > 1 {
+            self.set_area(total_area);
+
+            if !self.get_is_static() {
+                self.set_mass(self.get_density() * total_area);
+                self.set_inertia(total_inertia);
+            }
+        }
+
+        if self.get_circle_radius().is_some() {
+            if scale_x == scale_y {
+                let circle_radius = self.get_circle_radius().unwrap_or(0.);
+
+                self.set_circle_radius(circle_radius * scale_x);
+            } else {
+                let mut content = content_mut!(self);
+                content.circle_radius = None;
+            }
+        }
+    }
+
     // endregion: Actions
 }
 
@@ -744,6 +944,7 @@ mod tests {
         },
     };
 
+    // region: Helpers
     fn body_from_content(content: BodyContent) -> Body {
         Body {
             content: Rc::new(RefCell::new(content)),
@@ -751,9 +952,7 @@ mod tests {
         }
     }
 
-    #[test]
-    fn rotate_should_be_able_to_rotate_a_body_with_a_point() {
-        // Arrange
+    fn test_body() -> Body {
         let mut content = BodyContent::default_contant();
         content.id = common::next_id();
         content.angle = 42.;
@@ -766,6 +965,7 @@ mod tests {
         content.position_prev = Some(Position::new(1., 1.));
         content.bounds = Some(test_bounds());
         content.velocity = Velocity::new(42., 42.);
+        content.density = 1.1;
         content.vertices = vec_vector_to_vec_vertex(test_square());
 
         let mut parts = [1., 2.]
@@ -780,6 +980,7 @@ mod tests {
                     axes[1].add_x_y(-1. * increase, -1. * increase);
                 }
                 part_content.bounds = Some(test_bounds());
+                part_content.density = 1.1 + increase;
                 part_content.position = Position::new(*increase, *increase);
                 part_content.vertices = vec_vector_to_vec_vertex(test_square())
                     .iter_mut()
@@ -793,7 +994,178 @@ mod tests {
             })
             .collect_vec();
         content.parts = Some(parts);
-        let mut body = body_from_content(content);
+        body_from_content(content)
+    }
+    // endregion: Helpers
+
+    #[test]
+    fn scale_should_be_able_to_scale_a_circular_body() {
+        // Arrange
+        let mut body = test_body();
+        body.set_circle_radius(37.37);
+        let scale_x = 37.;
+        let scale_y = 37.;
+        let point = Position::new(93., 94.);
+        let point: Option<&Position> = Some(&point);
+
+        // Act
+        body.scale(scale_x, scale_y, point);
+
+        // Assert
+        assert_float(body.get_circle_radius().unwrap(), 1382.6899999999998);
+    }
+
+    #[test]
+    fn scale_should_be_able_to_scale_a_body_using_a_point() {
+        // Arrange
+        let mut body = test_body();
+        let scale_x = 37.;
+        let scale_y = 38.;
+        let point = Position::new(93., 94.);
+        let point: Option<&Position> = Some(&point);
+
+        // Act
+        body.scale(scale_x, scale_y, point);
+
+        // Assert
+        let part = body.get_parts()[0].clone();
+        assert_float(part.get_angle(), 42.);
+        assert_float(part.get_angle_prev(), 41.);
+        assert_float(part.get_area(), 11248.);
+        let axes = part.get_axes().unwrap();
+        assert_xy(&axes[0], 0., 1.);
+        assert_xy(&axes[1], -1., 0.);
+        assert_bounds(&part.get_bounds().unwrap(), -3311., -3440., -3195., -3322.);
+        assert_float(part.get_density(), 1.1);
+        assert_float(part.get_inertia(), 533832310912.02997);
+        assert_float(part.get_inverse_inertia(), 1.8732474216323515E-12);
+        assert_float(part.get_inverse_mass(), 0.00008082244924350186);
+        assert_float(part.get_mass(), 12372.800000000001);
+        assert_xy(&part.get_position(), -3274., -3402.);
+        let vertices = part.get_vertices();
+        assert_xy(&vertices[0], -3311., -3440.);
+        assert_xy(&vertices[1], -3237., -3440.);
+        assert_xy(&vertices[2], -3237., -3364.);
+        assert_xy(&vertices[3], -3311., -3364.);
+
+        let part = body.get_parts()[1].clone();
+        assert_float(part.get_angle(), 43.);
+        assert_float(part.get_angle_prev(), 42.);
+        assert_float(part.get_area(), 5624.);
+        let axes = part.get_axes().unwrap();
+        assert_xy(&axes[0], 0., 1.);
+        assert_xy(&axes[1], -1., 0.);
+        assert_bounds(&part.get_bounds().unwrap(), -3274., -3402., -3158., -3284.);
+        assert_float(part.get_density(), 1.1);
+        assert_float(part.get_inertia(), 269882416676.12234);
+        assert_float(part.get_inverse_inertia(), 3.7053173464059704e-12);
+        assert_float(part.get_inverse_mass(), 0.00016164489848700372);
+        assert_float(part.get_mass(), 6186.400000000001);
+        assert_xy(&part.get_position(), -3311., -3440.);
+        let vertices = part.get_vertices();
+        assert_xy(&vertices[0], -3274., -3402.);
+        assert_xy(&vertices[1], -3200., -3402.);
+        assert_xy(&vertices[2], -3200., -3326.);
+        assert_xy(&vertices[3], -3274., -3326.);
+
+        let part = body.get_parts()[2].clone();
+        assert_float(part.get_angle(), 44.);
+        assert_float(part.get_angle_prev(), 43.);
+        assert_float(part.get_area(), 5624.);
+        let axes = part.get_axes().unwrap();
+        assert_xy(&axes[0], 0., 1.);
+        assert_xy(&axes[1], -1., 0.);
+        assert_bounds(&part.get_bounds().unwrap(), -3237., -3364., -3121., -3246.);
+        assert_float(part.get_density(), 1.1);
+        assert_float(part.get_inertia(), 263949894235.90762);
+        assert_float(part.get_inverse_inertia(), 3.788597843143066e-12);
+        assert_float(part.get_inverse_mass(), 0.00016164489848700372);
+        assert_float(part.get_mass(), 6186.400000000001);
+        assert_xy(&part.get_position(), -3274., -3402.);
+        let vertices = part.get_vertices();
+        assert_xy(&vertices[0], -3237., -3364.);
+        assert_xy(&vertices[1], -3163., -3364.);
+        assert_xy(&vertices[2], -3163., -3288.);
+        assert_xy(&vertices[3], -3237., -3288.);
+    }
+
+    #[test]
+    fn scale_should_be_able_to_scale_a_body_not_using_a_point() {
+        // Arrange
+        let mut body = test_body();
+        let scale_x = 37.;
+        let scale_y = 38.;
+        let point: Option<&Position> = None;
+
+        // Act
+        body.scale(scale_x, scale_y, point);
+
+        // Assert
+        let part = body.get_parts()[0].clone();
+        assert_float(part.get_angle(), 42.);
+        assert_float(part.get_angle_prev(), 41.);
+        assert_float(part.get_area(), 11248.);
+        let axes = part.get_axes().unwrap();
+        assert_xy(&axes[0], 0., 1.);
+        assert_xy(&axes[1], -1., 0.);
+        assert_bounds(&part.get_bounds().unwrap(), -35., -36., 81., 82.);
+        assert_float(part.get_density(), 1.1);
+        assert_float(part.get_inertia(), 291919290.36388415);
+        assert_float(part.get_inverse_inertia(), 3.4256043811064247e-9);
+        assert_float(part.get_inverse_mass(), 0.00008082244924350186);
+        assert_float(part.get_mass(), 12372.800000000001);
+        assert_xy(&part.get_position(), 2., 2.);
+        let vertices = part.get_vertices();
+        assert_xy(&vertices[0], -35., -36.);
+        assert_xy(&vertices[1], 39., -36.);
+        assert_xy(&vertices[2], 39., 40.);
+        assert_xy(&vertices[3], -35., 40.);
+
+        let part = body.get_parts()[1].clone();
+        assert_float(part.get_angle(), 43.);
+        assert_float(part.get_angle_prev(), 42.);
+        assert_float(part.get_area(), 5624.);
+        let axes = part.get_axes().unwrap();
+        assert_xy(&axes[0], 0., 1.);
+        assert_xy(&axes[1], -1., 0.);
+        assert_bounds(&part.get_bounds().unwrap(), 2., 2., 118., 120.);
+        assert_float(part.get_density(), 1.1);
+        assert_float(part.get_inertia(), 94692734.09721743);
+        assert_float(part.get_inverse_inertia(), 1.056047234810369e-8);
+        assert_float(part.get_inverse_mass(), 0.00016164489848700372);
+        assert_float(part.get_mass(), 6186.400000000001);
+        assert_xy(&part.get_position(), -35., -36.);
+        let vertices = part.get_vertices();
+        assert_xy(&vertices[0], 2., 2.);
+        assert_xy(&vertices[1], 76., 2.);
+        assert_xy(&vertices[2], 76., 78.);
+        assert_xy(&vertices[3], 2., 78.);
+
+        let part = body.get_parts()[2].clone();
+        assert_float(part.get_angle(), 44.);
+        assert_float(part.get_angle_prev(), 43.);
+        assert_float(part.get_area(), 5624.);
+        let axes = part.get_axes().unwrap();
+        assert_xy(&axes[0], 0., 1.);
+        assert_xy(&axes[1], -1., 0.);
+        assert_bounds(&part.get_bounds().unwrap(), 39., 40., 155., 158.);
+        assert_float(part.get_density(), 1.1);
+        assert_float(part.get_inertia(), 197226556.2666667);
+        assert_float(part.get_inverse_inertia(), 5.070311112910762e-9);
+        assert_float(part.get_inverse_mass(), 0.00016164489848700372);
+        assert_float(part.get_mass(), 6186.400000000001);
+        assert_xy(&part.get_position(), 2., 2.);
+        let vertices = part.get_vertices();
+        assert_xy(&vertices[0], 39., 40.);
+        assert_xy(&vertices[1], 113., 40.);
+        assert_xy(&vertices[2], 113., 116.);
+        assert_xy(&vertices[3], 39., 116.);
+    }
+
+    #[test]
+    fn rotate_should_be_able_to_rotate_a_body_with_a_point() {
+        // Arrange
+        let mut body = test_body();
 
         let rotation = 37.;
 
@@ -869,47 +1241,7 @@ mod tests {
     #[test]
     fn rotate_should_be_able_to_rotate_a_body_without_a_point() {
         // Arrange
-        let mut content = BodyContent::default_contant();
-        content.id = common::next_id();
-        content.angle = 42.;
-        content.angle_prev = 41.;
-        content.axes = Some(vec![
-            Vertex::new(None, 1., 1., 0, false),
-            Vertex::new(None, -1., -1., 1, false),
-        ]);
-        content.position = Position::new(2., 2.);
-        content.position_prev = Some(Position::new(1., 1.));
-        content.bounds = Some(test_bounds());
-        content.velocity = Velocity::new(42., 42.);
-        content.vertices = vec_vector_to_vec_vertex(test_square());
-
-        let mut parts = [1., 2.]
-            .iter()
-            .map(|increase| {
-                let mut part_content = content.clone();
-                part_content.id = common::next_id();
-                part_content.angle += increase;
-                part_content.angle_prev += increase;
-                if let Some(axes) = &mut part_content.axes {
-                    axes[0].add_x_y(*increase, *increase);
-                    axes[1].add_x_y(-1. * increase, -1. * increase);
-                }
-                part_content.bounds = Some(test_bounds());
-                part_content.position = Position::new(*increase, *increase);
-                part_content.vertices = vec_vector_to_vec_vertex(test_square())
-                    .iter_mut()
-                    .map(|vertex| {
-                        vertex.set_x(vertex.get_x() + increase);
-                        vertex.set_y(vertex.get_y() + increase);
-                        vertex.clone()
-                    })
-                    .collect_vec();
-                body_from_content(part_content)
-            })
-            .collect_vec();
-        content.parts = Some(parts);
-        let mut body = body_from_content(content);
-
+        let mut body = test_body();
         let rotation = 37.;
         let point: Option<&Position> = None;
         let update_velocity: Option<bool> = None;
@@ -982,34 +1314,7 @@ mod tests {
     #[test]
     fn translate_should_be_able_to_translate_a_body() {
         // Arrange
-        let mut content = BodyContent::default_contant();
-        content.id = common::next_id();
-        content.position = Position::new(2., 2.);
-        content.position_prev = Some(Position::new(1., 1.));
-        content.bounds = Some(test_bounds());
-        content.vertices = vec_vector_to_vec_vertex(test_square());
-        content.velocity = Velocity::new(42., 42.);
-
-        let mut parts = [1., 2.]
-            .iter()
-            .map(|increase| {
-                let mut part_content = content.clone();
-                part_content.id = common::next_id();
-                part_content.bounds = Some(test_bounds());
-                part_content.position = Position::new(*increase, *increase);
-                part_content.vertices = vec_vector_to_vec_vertex(test_square())
-                    .iter_mut()
-                    .map(|vertex| {
-                        vertex.set_x(vertex.get_x() + increase);
-                        vertex.set_y(vertex.get_y() + increase);
-                        vertex.clone()
-                    })
-                    .collect_vec();
-                body_from_content(part_content)
-            })
-            .collect_vec();
-        content.parts = Some(parts);
-        let mut body = body_from_content(content);
+        let mut body = test_body();
 
         let translation = Position::new(37., 38.);
         let update_velocity = None;

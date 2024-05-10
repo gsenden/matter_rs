@@ -1,3 +1,6 @@
+use std::rc::{Rc, Weak};
+
+use crate::body::body::{Body, BodyContent};
 use crate::core::position::Position;
 use crate::core::velocity::Velocity;
 use crate::core::xy::XY;
