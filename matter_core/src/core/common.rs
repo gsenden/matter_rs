@@ -1,5 +1,7 @@
 use uuid::Uuid;
 
+pub const BASE_DELTA: f64 = 1000. / 60.;
+
 #[derive(Clone, Copy, Default)]
 pub enum ShapeType {
     #[default]

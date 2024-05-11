@@ -33,7 +33,6 @@ const INERTIA_SCALE: f64 = 4.;
 const NEXT_COLLIDING_GROUP_ID: i32 = 1;
 const NEXT_NON_COLLIDING_GROUP_ID: i32 = -1;
 const NEXT_CATEGORY: u16 = 1;
-const BASE_DELTA: f64 = 1000. / 60.;
 const TIME_CORRECTION: bool = true;
 
 // MARK: Structs
@@ -56,7 +55,7 @@ pub struct BodyContent {
     circle_radius: Option<f64>,
     collision_filter: CollisionFilter,
     constraint_impulse: ConstraintImpulse,
-    delta_time: f64,
+    delta_time: Option<f64>,
     density: f64,
     //events: Option<?>,
     force: Force,
@@ -106,7 +105,7 @@ impl BodyContent {
             circle_radius: None,
             collision_filter: CollisionFilter::new(1, u32::MAX, 0),
             constraint_impulse: ConstraintImpulse::new(0., 0., 0.),
-            delta_time: 1000. / 60.,
+            delta_time: Some(common::BASE_DELTA),
             density: 0.001,
             force: Force::new(0., 0.),
             friction_air: 0.01,
@@ -240,7 +239,7 @@ impl Body {
 
     pub fn get_velocity(&self) -> Velocity {
         let content = content!(self);
-        let time_scale = BASE_DELTA / content.delta_time;
+        let time_scale = common::BASE_DELTA / content.delta_time.unwrap_or(common::BASE_DELTA);
 
         if let Some(position_prev) = &content.position_prev {
             let x = (content.position.get_x() - position_prev.get_x()) * time_scale;
@@ -307,7 +306,8 @@ impl Body {
 
     pub fn get_angular_velocity(&self) -> f64 {
         let content = content!(self);
-        (content.angle - content.angle_prev) * BASE_DELTA / content.delta_time
+        (content.angle - content.angle_prev) * common::BASE_DELTA
+            / content.delta_time.unwrap_or(common::BASE_DELTA)
     }
 
     pub fn get_is_sensor(&self) -> bool {
@@ -382,7 +382,7 @@ impl Body {
         content!(self).angle_prev
     }
 
-    pub fn get_delta_time(&self) -> f64 {
+    pub fn get_delta_time(&self) -> Option<f64> {
         content!(self).delta_time
     }
 
@@ -645,7 +645,7 @@ impl Body {
 
     pub fn set_velocity(&mut self, velocity: &Velocity) {
         let mut content = content_mut!(self);
-        let time_scale = content.delta_time / BASE_DELTA;
+        let time_scale = content.delta_time.unwrap_or(common::BASE_DELTA) / common::BASE_DELTA;
 
         let position_prev = Position::new(
             content.position.get_x() - velocity.get_x() * time_scale,
@@ -672,7 +672,7 @@ impl Body {
 
     pub fn set_angular_velocity(&mut self, velocity: f64) {
         let mut content = content_mut!(self);
-        let time_scale = content.delta_time / BASE_DELTA;
+        let time_scale = content.delta_time.unwrap_or(common::BASE_DELTA) / common::BASE_DELTA;
         content.angle_prev = content.angle - velocity * time_scale;
         content.angular_velocity = (content.angle - content.angle_prev) / time_scale;
         content.angular_speed = f64::abs(content.angular_velocity);
@@ -720,7 +720,7 @@ impl Body {
 
     pub fn set_delta_time(&mut self, value: f64) {
         let mut content = content_mut!(self);
-        content.delta_time = value;
+        content.delta_time = Some(value);
     }
 
     pub fn set_density(&mut self, value: f64) {
@@ -918,6 +918,95 @@ impl Body {
         }
     }
 
+    pub fn update(&mut self, delta_time: Option<f64>) {
+        let delta_time = delta_time.unwrap_or(common::BASE_DELTA) * self.get_time_scale() as f64;
+        let delta_time_squared = delta_time * delta_time;
+        let correction = if TIME_CORRECTION {
+            delta_time / (self.get_delta_time().unwrap_or(common::BASE_DELTA))
+        } else {
+            1.
+        };
+
+        // from the previous step
+        let friction_air = 1. - self.get_friction_air() * (delta_time / common::BASE_DELTA);
+        let velocity_prev_x = (self.get_position().get_x()
+            - self
+                .get_position_prev()
+                .unwrap_or(Position::new(0., 0.))
+                .get_x())
+            * correction;
+        let velocity_prev_y = (self.get_position().get_y()
+            - self
+                .get_position_prev()
+                .unwrap_or(Position::new(0., 0.))
+                .get_y())
+            * correction;
+
+        // update velocity with Verlet integration
+        let velocity_x = (velocity_prev_x * friction_air)
+            + (self.get_force().get_x() / self.get_mass()) * delta_time_squared;
+        let velocity_y = (velocity_prev_y * friction_air)
+            + (self.get_force().get_y() / self.get_mass()) * delta_time_squared;
+
+        let mut parent_velocity = Velocity::new(0., 0.);
+        {
+            let mut content = content_mut!(self);
+            content.velocity = Velocity::new(velocity_x, velocity_y);
+            content.position_prev = Some(content.position.clone());
+            parent_velocity = content.velocity.clone();
+
+            content.position.add_xy(&parent_velocity);
+            content.delta_time = Some(delta_time);
+        }
+
+        // update angular velocity with Verlet integration
+        let angular_velocity =
+            ((self.get_angle() - self.get_angle_prev()) * friction_air * correction)
+                + (self.get_torque() / self.get_inertia()) * delta_time_squared;
+        {
+            let mut content = content_mut!(self);
+            content.angular_velocity = angular_velocity;
+            content.angle_prev = content.angle;
+            content.angle += angular_velocity;
+        }
+
+        let parent_id = self.get_id();
+        let parent_position = self.get_position();
+
+        // transform the body geometry
+        for part in &mut self.get_parts() {
+            let mut part_content = content_mut!(part);
+
+            vertices::translate(&mut part_content.vertices, &parent_velocity, None);
+
+            if part_content.id != parent_id {
+                part_content.position.add_xy(&parent_velocity);
+            }
+
+            if angular_velocity != 0. {
+                vertices::rotate(
+                    &mut part_content.vertices,
+                    angular_velocity,
+                    &parent_position,
+                );
+                if let Some(axes) = &mut part_content.axes {
+                    axes::rotate(axes, angular_velocity);
+                }
+
+                if part_content.id != parent_id {
+                    vector::rotate_about(
+                        &mut part_content.position,
+                        angular_velocity,
+                        &parent_position,
+                    );
+                }
+            }
+            let vertices = part_content.vertices.clone();
+            if let Some(bounds) = &mut part_content.bounds {
+                bounds::update(bounds, &vertices, &Some(&parent_velocity));
+            }
+        }
+    }
     // endregion: Actions
 }
 
@@ -966,6 +1055,15 @@ mod tests {
         content.bounds = Some(test_bounds());
         content.velocity = Velocity::new(42., 42.);
         content.density = 1.1;
+        content.time_scale = 93;
+        content.delta_time = Some(3.2);
+        content.friction_air = 9.7;
+        content.force = Force::new(69., 79.);
+        content.mass = 88.;
+        content.torque = 52.;
+        content.inertia = 32.;
+        content.angular_velocity = 12.;
+
         content.vertices = vec_vector_to_vec_vertex(test_square());
 
         let mut parts = [1., 2.]
@@ -981,6 +1079,15 @@ mod tests {
                 }
                 part_content.bounds = Some(test_bounds());
                 part_content.density = 1.1 + increase;
+                part_content.time_scale = 93;
+                part_content.delta_time = Some(3.2);
+                part_content.friction_air = 9.7;
+                part_content.force = Force::new(69., 79.);
+                part_content.mass = 88.;
+                part_content.torque = 52.;
+                part_content.inertia = 32.;
+                part_content.angular_velocity = 12.;
+
                 part_content.position = Position::new(*increase, *increase);
                 part_content.vertices = vec_vector_to_vec_vertex(test_square())
                     .iter_mut()
@@ -997,6 +1104,114 @@ mod tests {
         body_from_content(content)
     }
     // endregion: Helpers
+
+    #[test]
+    fn update_should_be_able_to_update_a_body() {
+        // Arrange
+        let mut body = test_body();
+        let delta_time = Some(common::BASE_DELTA);
+
+        // Act
+        body.update(delta_time);
+
+        // Assert
+        let mut part = body.get_parts()[0].clone();
+        assert_float(part.get_angle(), 3467634.1875);
+        assert_float(part.get_angle_prev(), 42.);
+        assert_float(part.get_angular_velocity_prop(), 3467592.1875);
+        let axes = part.get_axes().unwrap();
+        assert_xy(&axes[0], -1.307352295833022, -0.5392865421833987);
+        assert_xy(&axes[1], 1.307352295833022, 0.5392865421833987);
+        assert_bounds(
+            &part.get_bounds().unwrap(),
+            1447308.789238613,
+            1720320.1528749766,
+            2894619.5005341135,
+            3440642.227806841,
+        );
+        assert_float(part.get_delta_time().unwrap(), 1550.);
+        assert_float(part.get_density(), 1.1);
+        assert_xy(&part.get_force(), 69., 79.);
+        assert_float(part.get_friction_air(), 9.7);
+        assert_float(part.get_inertia(), 32.);
+        assert_float(part.get_mass(), 88.);
+        assert_xy(&part.get_position(), 1447310.096590909, 1720321.4602272725);
+        assert_xy(&part.get_position_prev().unwrap(), 2., 2.);
+        assert_float(part.get_time_scale() as f64, 93.);
+        assert_float(part.get_torque(), 52.);
+        assert_xy(
+            &part.get_velocity_prop(),
+            1447308.096590909,
+            1720319.4602272725,
+        );
+        let vertices = part.get_vertices();
+        assert_xy(&vertices[0], 1447311.4039432048, 1720321.9995138147);
+        assert_xy(&vertices[1], 1447309.5573043667, 1720322.7675795683);
+        assert_xy(&vertices[2], 1447308.789238613, 1720320.9209407303);
+        assert_xy(&vertices[3], 1447310.6358774512, 1720320.1528749766);
+
+        part = body.get_parts()[1].clone();
+        assert_float(part.get_angle(), 43.);
+        assert_float(part.get_angle_prev(), 42.);
+        assert_float(part.get_angular_velocity_prop(), 12.);
+        let axes = part.get_axes().unwrap();
+        assert_xy(&axes[0], -2.614704591666044, -1.0785730843667973);
+        assert_xy(&axes[1], 2.614704591666044, 1.0785730843667973);
+        assert_bounds(
+            &part.get_bounds().unwrap(),
+            1447307.4818863173,
+            1720319.6135884344,
+            2894618.193181818,
+            3440641.6885202983,
+        );
+        assert_float(part.get_delta_time().unwrap(), 3.2);
+        assert_float(part.get_density(), 2.1);
+        assert_xy(&part.get_force(), 69., 79.);
+        assert_float(part.get_friction_air(), 9.7);
+        assert_float(part.get_inertia(), 32.);
+        assert_float(part.get_mass(), 88.);
+        assert_xy(&part.get_position(), 1447311.4039432048, 1720321.9995138147);
+        assert_xy(&part.get_position_prev().unwrap(), 1., 1.);
+        assert_float(part.get_time_scale() as f64, 93.);
+        assert_float(part.get_torque(), 52.);
+        assert_xy(&part.get_velocity_prop(), 42., 42.);
+        let vertices = part.get_vertices();
+        assert_xy(&vertices[0], 1447310.096590909, 1720321.4602272725);
+        assert_xy(&vertices[1], 1447308.2499520709, 1720322.228293026);
+        assert_xy(&vertices[2], 1447307.4818863173, 1720320.381654188);
+        assert_xy(&vertices[3], 1447309.3285251553, 1720319.6135884344);
+
+        part = body.get_parts()[2].clone();
+        assert_float(part.get_angle(), 44.);
+        assert_float(part.get_angle_prev(), 43.);
+        assert_float(part.get_angular_velocity_prop(), 12.);
+        let axes = part.get_axes().unwrap();
+        assert_xy(&axes[0], -3.922056887499066, -1.6178596265501959);
+        assert_xy(&axes[1], 3.922056887499066, 1.6178596265501959);
+        assert_bounds(
+            &part.get_bounds().unwrap(),
+            1447306.1745340214,
+            1720319.0743018922,
+            2894616.8858295223,
+            3440641.1492337566,
+        );
+        assert_float(part.get_delta_time().unwrap(), 3.2);
+        assert_float(part.get_density(), 3.1);
+        assert_xy(&part.get_force(), 69., 79.);
+        assert_float(part.get_friction_air(), 9.7);
+        assert_float(part.get_inertia(), 32.);
+        assert_float(part.get_mass(), 88.);
+        assert_xy(&part.get_position(), 1447310.096590909, 1720321.4602272725);
+        assert_xy(&part.get_position_prev().unwrap(), 1., 1.);
+        assert_float(part.get_time_scale() as f64, 93.);
+        assert_float(part.get_torque(), 52.);
+        assert_xy(&part.get_velocity_prop(), 42., 42.);
+        let vertices = part.get_vertices();
+        assert_xy(&vertices[0], 1447308.789238613, 1720320.9209407303);
+        assert_xy(&vertices[1], 1447306.942599775, 1720321.6890064839);
+        assert_xy(&vertices[2], 1447306.1745340214, 1720319.8423676458);
+        assert_xy(&vertices[3], 1447308.0211728595, 1720319.0743018922);
+    }
 
     #[test]
     fn scale_should_be_able_to_scale_a_circular_body() {
