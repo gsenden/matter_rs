@@ -1007,6 +1007,18 @@ impl Body {
             }
         }
     }
+
+    pub fn apply_force(&mut self, position: &Position, force: &Force) {
+        let offset = vector::create(
+            position.get_x() - self.get_position().get_x(),
+            position.get_y() - self.get_position().get_y(),
+        );
+        {
+            let mut content = content_mut!(self);
+            content.force.add_xy(force);
+            content.torque += offset.get_x() * force.get_y() - offset.get_y() * force.get_x();
+        }
+    }
     // endregion: Actions
 }
 
@@ -1104,6 +1116,25 @@ mod tests {
         body_from_content(content)
     }
     // endregion: Helpers
+
+    #[test]
+    fn apply_force_should_be_able_to_update_a_body() {
+        // Arrange
+        let mut body = test_body();
+        {
+            let mut content = content_mut!(body);
+            content.force = Force::new(3., 4.);
+        }
+        let position = Position::new(89., 99.);
+        let force = Force::new(37., 42.);
+
+        // Act
+        body.apply_force(&position, &force);
+
+        // Assert
+        assert_xy(&body.get_force(), 40., 46.);
+        assert_float(body.get_torque(), 117.);
+    }
 
     #[test]
     fn update_should_be_able_to_update_a_body() {
