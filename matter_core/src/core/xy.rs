@@ -50,6 +50,58 @@ pub trait XY {
     fn dot(&self, multiplier: &impl XY) -> f64 {
         self.get_x() * multiplier.get_x() + self.get_y() * multiplier.get_y()
     }
+
+    fn magnitude_squared(&self) -> f64 {
+        self.get_x().powi(2) + self.get_y().powi(2)
+    }
+
+    fn magnitude(&self) -> f64 {
+        self.magnitude_squared().sqrt()
+    }
+
+    fn rotate_about(&mut self, angle: f64, point: &impl XY) {
+        let cos = angle.cos();
+        let sin = angle.sin();
+        let x = point.get_x()
+            + ((self.get_x() - point.get_x()) * cos - (self.get_y() - point.get_y()) * sin);
+        let y = point.get_y()
+            + ((self.get_x() - point.get_x()) * sin + (self.get_y() - point.get_y()) * cos);
+        self.set_x_y(x, y);
+    }
+
+    fn cross3(vector_a: &impl XY, vector_b: &impl XY, vector_c: &impl XY) -> f64 {
+        (vector_b.get_x() - vector_a.get_x()) * (vector_c.get_y() - vector_a.get_y())
+            - (vector_b.get_y() - vector_a.get_y()) * (vector_c.get_x() - vector_a.get_x())
+    }
+
+    fn cross(vector_a: &impl XY, vector_b: &impl XY) -> f64 {
+        (vector_a.get_x() * vector_b.get_y()) - (vector_a.get_y() * vector_b.get_x())
+    }
+
+    fn perp(&mut self, negate: bool) {
+        let negate_factor = if negate { -1.0 } else { 1.0 };
+
+        let x = negate_factor * (self.get_y() * -1.0);
+        let y = negate_factor * self.get_x();
+        self.set_x_y(x, y);
+    }
+
+    fn angle(vector_a: &impl XY, vector_b: &impl XY) -> f64 {
+        f64::atan2(
+            vector_b.get_y() - vector_a.get_y(),
+            vector_b.get_x() - vector_a.get_x(),
+        )
+    }
+
+    fn normalise(&mut self) {
+        let magnitude = self.magnitude();
+        if magnitude == 0.0 {
+            self.set_x_y(0., 0.);
+        } else {
+            self.set_x(self.get_x() / magnitude);
+            self.set_y(self.get_y() / magnitude);
+        }
+    }
 }
 
 pub trait XYNew {

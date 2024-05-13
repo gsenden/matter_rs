@@ -249,7 +249,7 @@ mod tests {
         let vertices = Vertices::create(points, None);
 
         // Act
-        let result = Bounds::create(Some(&vertices));
+        let result = Bounds::create(Some(vertices));
 
         // Assert
         assert_bounds(&result, 0.0, 0.0, 40.1, 40.1);
@@ -262,7 +262,7 @@ mod tests {
         let mut bounds = test_bounds();
 
         // Act
-        bounds.update(&vertices, &None);
+        bounds.update(&vertices, None);
 
         // Assert
         assert_bounds(&bounds, 0.0, 0.0, 40.1, 40.1);
@@ -276,7 +276,7 @@ mod tests {
         let mut bounds = test_bounds();
 
         // Act
-        bounds.update(&vertices, &Some(&velocity));
+        bounds.update(&vertices, Some(&velocity));
 
         // Assert
         assert_bounds(&bounds, 0.0, 0.0, 45.1, 46.1);

@@ -51,7 +51,7 @@ pub fn vec_vector_to_vec_vertex(vectors: Vec<Vector>) -> Vec<Vertex> {
         .iter()
         .map(|vector| {
             index += 1;
-            Vertex::from_vector(None, vector, index - 1, false)
+            Vertex::from_xy(None, vector, index - 1, false)
         })
         .collect()
 }

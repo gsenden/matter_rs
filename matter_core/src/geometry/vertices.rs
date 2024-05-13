@@ -1,5 +1,6 @@
 use float_cmp::ApproxEq;
 use std::cmp::Ordering;
+use std::collections::btree_map::Values;
 use std::rc::Weak;
 use std::slice::Iter;
 use std::slice::IterMut;
@@ -21,6 +22,7 @@ pub enum FromPathError {
     ParseFloatError(String),
 }
 
+#[derive(Clone)]
 pub struct Vertices {
     value: Vec<Vertex>,
 }
@@ -44,15 +46,28 @@ impl Vertices {
         self.value.iter()
     }
 
-    pub fn iter_mut(&self) -> IterMut<Vertex> {
+    pub fn iter_mut(&mut self) -> IterMut<Vertex> {
         self.value.iter_mut()
+    }
+
+    pub fn len(&self) -> usize {
+        self.value.len()
+    }
+
+    pub fn get_value(&self) -> Vec<Vertex> {
+        self.value.clone()
+    }
+
+    pub fn append(&mut self, values: &Vertices) {
+        let mut values = values.clone();
+        self.value.append(&mut values.value);
     }
 
     pub fn new(points: Vec<Vector>, body: Option<Body>) -> Self {
         let mut vertices: Vec<Vertex> = Vec::new();
 
         for (index, vector) in points.iter().enumerate() {
-            vertices.push(Vertex::from_vector(body.clone(), vector, index, false));
+            vertices.push(Vertex::from_xy(body.clone(), vector, index, false));
         }
         Vertices { value: vertices }
     }
@@ -128,7 +143,7 @@ impl Vertices {
         }
     }
 
-    pub fn centre(&self) -> impl XY {
+    pub fn centre(&self) -> Vector {
         let area = self.area(Some(true));
         let mut centre = Vector::new(0., 0.);
         for (index, vertex) in self.value.iter().enumerate() {
@@ -144,7 +159,7 @@ impl Vertices {
         centre
     }
 
-    pub fn mean(&self) -> impl XY {
+    pub fn mean(&self) -> Vector {
         let mut average = self.value.iter().fold(Vector::new(0., 0.), |mut cur, acc| {
             cur.set_x(cur.get_x() + acc.get_x());
             cur.set_y(cur.get_y() + acc.get_y());
@@ -164,8 +179,7 @@ impl Vertices {
             let vertex2 = self.value[index2].clone();
             let cross = f64::abs(Vector::cross(&vertex2, vertex));
 
-            numerator +=
-                cross * (vertex2.dot(&vertex2) + vertex2.dot(&vertex) + vertex.dot(&vertex));
+            numerator += cross * (vertex2.dot(&vertex2) + vertex2.dot(vertex) + vertex.dot(vertex));
             denominator += cross;
         }
         (mass / 6.0) * (numerator / denominator)
@@ -173,7 +187,7 @@ impl Vertices {
 
     pub fn translate(&mut self, point: &impl XY, scalar: Option<f64>) {
         let scalar = scalar.unwrap_or(1.);
-        let mut translate = point.clone();
+        let mut translate = Vector::new_from(point);
         translate.mult(scalar);
 
         for vertex in self.value.iter_mut() {
@@ -199,7 +213,11 @@ impl Vertices {
     }
 
     pub fn scale(&mut self, scale_x: f64, scale_y: f64, point: Option<&impl XY>) {
-        let point = point.unwrap_or(self.centre());
+        let point = if let Some(point) = point {
+            Vector::new_from(point)
+        } else {
+            self.centre()
+        };
 
         if scale_x == 1.0 && scale_y == 1.0 {
             return;
@@ -207,7 +225,7 @@ impl Vertices {
 
         for vertex in self.value.iter_mut() {
             let mut delta = vertex.clone();
-            delta.sub(point);
+            delta.sub(&point);
 
             vertex.set_x(point.get_x() + delta.get_x() * scale_x);
             vertex.set_y(point.get_y() + delta.get_y() * scale_y);
@@ -228,13 +246,14 @@ impl Vertices {
         let quality_max = quality_max.unwrap_or(104.0_f64);
 
         let mut new_vertices: Vec<Vertex> = Vec::new();
+        let value = self.value.clone();
         for (index, vertex) in self.value.iter_mut().enumerate() {
-            let prev_vertex = &self.value[if index > 0 {
+            let prev_vertex = &value[if index > 0 {
                 index - 1
             } else {
-                self.value.len() - 1
+                value.len() - 1
             }];
-            let next_vertex = &self.value[(index + 1) % self.value.len()];
+            let next_vertex = &value[(index + 1) % value.len()];
             let current_radius = radius[if index < radius.len() {
                 index
             } else {
@@ -259,14 +278,14 @@ impl Vertices {
             next_normal.normalise();
 
             let diagonal_radius = f64::sqrt(2.0 * f64::powf(current_radius, 2.0));
-            let radius_vector = prev_normal.clone();
+            let mut radius_vector = prev_normal.clone();
             radius_vector.mult(current_radius);
 
             let mut mid_normal = Vector::add(&prev_normal, &next_normal);
             mid_normal.mult(0.5);
             mid_normal.normalise();
 
-            let scaled_vertex = vertex.clone();
+            let mut scaled_vertex = vertex.clone();
             let mut mult = mid_normal.clone();
             mult.mult(diagonal_radius);
             scaled_vertex.sub(&mult);
@@ -290,7 +309,7 @@ impl Vertices {
                 let mut rotated = radius_vector.clone();
                 rotated.rotate(theta * index as f64);
                 rotated.add_xy(&scaled_vertex);
-                new_vertices.push(Vertex::from_vector(
+                new_vertices.push(Vertex::from_xy(
                     vertex.get_body().clone(),
                     &rotated,
                     index,

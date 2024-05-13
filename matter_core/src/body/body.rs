@@ -16,10 +16,11 @@ use crate::{
         xy::{XYNew, XY},
     },
     geometry::{
-        axes,
+        axes::{self, Axes},
         bounds::{self, Bounds},
         vector::{self, Vector},
-        vertices::{self, Vertex},
+        vertex::Vertex,
+        vertices::{self, Vertices},
     },
 };
 use core::time;
@@ -51,7 +52,7 @@ pub struct BodyContent {
     angular_speed: f64,
     angular_velocity: f64,
     area: f64,
-    axes: Option<Vec<Vertex>>,
+    axes: Option<Axes>,
     bounds: Option<Bounds>,
     chamfer: Option<Vec<Vector>>,
     circle_radius: Option<f64>,
@@ -88,7 +89,7 @@ pub struct BodyContent {
     torque: f64,
     total_contacts: u32,
     velocity: Velocity,
-    vertices: Vec<Vertex>,
+    vertices: Vertices,
     _original: Option<BodyOriginal>,
 }
 
@@ -137,7 +138,7 @@ impl BodyContent {
             torque: 0.,
             total_contacts: 0,
             velocity: Velocity::new(0., 0.),
-            vertices: vertices::from_path("L 0 0 L 40 0 L 40 40 L 0 40", None).unwrap(),
+            vertices: Vertices::from_path("L 0 0 L 40 0 L 40 40 L 0 40", None).unwrap(),
             _original: None,
         }
     }
@@ -165,7 +166,7 @@ impl Body {
             content: Rc::new(RefCell::new(content)),
             parent: Weak::new(),
         };
-        vertices::set_body(&mut body.content.as_ref().borrow_mut().vertices, &body);
+        content_mut!(body).vertices.set_body(&body);
         body
     }
 
@@ -223,7 +224,7 @@ impl Body {
         content!(self).area
     }
 
-    pub fn get_axes(&self) -> Option<Vec<Vertex>> {
+    pub fn get_axes(&self) -> Option<Axes> {
         content!(self).axes.clone()
     }
 
@@ -254,7 +255,7 @@ impl Body {
         }
     }
 
-    pub fn get_vertices(&self) -> Vec<Vertex> {
+    pub fn get_vertices(&self) -> Vertices {
         content!(self).vertices.clone()
     }
 
@@ -291,7 +292,7 @@ impl Body {
     }
 
     pub fn get_speed(&self) -> f64 {
-        vector::magnitude(&self.get_velocity())
+        self.get_velocity().magnitude()
     }
 
     pub fn get_angular_speed_prop(&self) -> f64 {
@@ -388,6 +389,10 @@ impl Body {
         content!(self).delta_time
     }
 
+    fn get_parts_prop(&self) -> Option<Vec<Body>> {
+        content!(self).parts.clone()
+    }
+
     pub fn get_parts(&self) -> Vec<Body> {
         let mut parts = vec![self.clone()];
         if let Some(my_parts) = &content!(self).parts {
@@ -401,6 +406,11 @@ impl Body {
     fn get_original(&self) -> Option<BodyOriginal> {
         content!(self)._original
     }
+
+    pub fn get_moment(&self) -> f64 {
+        let content = content!(self);
+        content.inertia / (content.mass / 6.)
+    }
     // endregion: Getters
 
     // MARK: Setters
@@ -409,64 +419,50 @@ impl Body {
         self.parent = Rc::downgrade(&parent.content);
     }
 
-    pub fn set_inertia(&mut self, inertia: f64) {
-        let mut content = content_mut!(self);
-        content.inertia = inertia;
-        content.inverse_inertia = 1. / content.inertia;
+    fn set_inertia_prop(&mut self, value: f64) {
+        content_mut!(self).inertia = value;
     }
 
-    fn get_moment(&self) -> f64 {
-        let content = content!(self);
-        content.inertia / (content.mass / 6.)
+    pub fn set_inertia(&mut self, value: f64) {
+        self.set_inertia_prop(value);
+        self.set_inverse_inertia(1. / self.get_inertia());
     }
 
     fn set_mass_prop(&mut self, value: f64) {
         content_mut!(self).mass = value;
     }
 
-    pub fn set_mass(&mut self, mass: f64) {
+    pub fn set_mass(&mut self, value: f64) {
         let moment = self.get_moment();
-        self.set_inertia(moment * (mass / 6.));
-
-        let mut content = content_mut!(self);
-        content.mass = mass;
-        content.inverse_mass = 1. / content.mass;
-        content.density = content.mass / content.area;
+        self.set_inertia(moment * (value / 6.));
+        self.set_mass_prop(value);
+        self.set_inverse_mass(1. / value);
+        self.set_density(value / self.get_area());
     }
 
-    pub fn set_vertices(&mut self, vertices: Vec<Vertex>) {
-        let mut vertices = vertices;
-        vertices::set_body(&mut vertices, self);
+    fn set_vertices_prop(&mut self, value: &Vertices) {
+        content_mut!(self).vertices = value.clone();
+    }
 
-        let mut density_area = 0.;
-        {
-            let mut content = content_mut!(self);
-            content.vertices = vertices;
-            content.axes = Some(axes::from_vertices(&content.vertices));
-            content.area = vertices::area(&content.vertices, None);
-            density_area = content.density * content.area;
-        }
+    pub fn set_vertices(&mut self, vertices: &Vertices) {
+        let mut vertices = vertices.clone();
+        vertices.set_body(&self);
+        self.set_vertices_prop(&vertices);
+        self.set_axes(&Axes::from_vertices(&vertices));
+        self.set_area(vertices.area(None));
+        self.set_mass(self.get_density() * self.get_area());
+        let centre = vertices.centre();
+        let mut vertices = self.get_vertices();
+        vertices.translate(&centre, Some(-1.));
+        self.set_vertices_prop(&vertices);
+        self.set_inertia(INERTIA_SCALE * self.get_vertices().innertia(self.get_mass()));
+        let mut vertices = self.get_vertices();
+        vertices.translate(&self.get_position(), None);
+        self.set_vertices_prop(&vertices);
 
-        self.set_mass(density_area);
-
-        let mut inertia = 0.;
-        {
-            let mut content = content_mut!(self);
-            let centre = vertices::centre(&content.vertices);
-            vertices::translate(&mut content.vertices, &centre, Some(-1.0));
-            inertia = INERTIA_SCALE * vertices::innertia(&content.vertices, content.mass);
-        }
-        self.set_inertia(inertia);
-
-        {
-            let mut content = content_mut!(self);
-            let position = content.position;
-
-            vertices::translate(&mut content.vertices, &position, None);
-            if let Some(mut bounds) = &content.bounds {
-                bounds::update(&mut bounds, &content.vertices, &Some(&content.velocity));
-                content.bounds = Some(bounds.clone());
-            }
+        if let Some(bounds) = &mut self.get_bounds() {
+            bounds.update(&self.get_vertices(), Some(&self.get_velocity()));
+            self.set_bounds(&bounds);
         }
     }
 
@@ -487,14 +483,17 @@ impl Body {
             properties.set_mass(properties.get_mass() + mass);
             properties.set_area(properties.get_area() + part.get_area());
             properties.set_inertia(properties.get_inertia() + part.get_inertia());
-            let position_times_mass = vector::mult(&part.get_position(), mass);
-            let centre = vector::add(&properties.get_centre(), &position_times_mass);
+            let mut position = part.get_position();
+            position.mult(mass);
+            let mut centre = properties.get_centre();
+            centre.add_xy(&position);
             properties.set_centre(&centre);
 
             index += 1;
         }
 
-        let centre = vector::div(&properties.get_centre(), properties.get_mass());
+        let mut centre = properties.get_centre();
+        centre.div(properties.get_mass());
         properties.set_centre(&centre);
 
         properties
@@ -506,37 +505,39 @@ impl Body {
 
     pub fn set_position(&mut self, position: Position, update_velocity: Option<bool>) {
         let update_velocity = update_velocity.unwrap_or(false);
-        let mut delta: Vector = vector::create(0., 0.);
-        let mut parent_velocity = Velocity::new(0., 0.);
+        let mut delta = Velocity::new_from(&position);
+        delta.sub(&self.get_position());
 
-        {
-            let mut content = content_mut!(self);
-            delta = vector::sub(&position, &content.position);
-
-            if update_velocity {
-                content.position_prev = Some(content.position.clone());
-                content.velocity.set_xy(&delta);
-                content.speed = vector::magnitude(&delta);
+        if update_velocity {
+            self.set_position_prev(&position);
+            self.set_velocity_prop(&delta);
+            let mut speed = delta.clone();
+            self.set_speed_prop(speed.magnitude());
+        } else {
+            if let Some(position_prev) = &mut self.get_position_prev() {
+                position_prev.add_xy(&delta);
+                self.set_position_prev(&position_prev);
             } else {
-                if let Some(ref mut position_prev) = content.position_prev {
-                    position_prev.add_xy(&delta)
-                } else {
-                    content.position_prev = Some(Position::new_from(&delta));
-                }
+                self.set_position_prev(&Position::new_from(&delta));
             }
-            parent_velocity = content.velocity.clone();
         }
 
         for part in self.get_parts().iter_mut() {
-            let mut part_content = content_mut!(part);
-
-            part_content.position.add_xy(&delta);
-            vertices::translate(&mut part_content.vertices, &delta, None);
-            let vertices = part_content.vertices.clone();
-            if let Some(bounds) = &mut part_content.bounds {
-                bounds::update(bounds, &vertices, &Some(&parent_velocity));
+            let mut position = part.get_position();
+            position.add_xy(&delta);
+            self.set_position_prop(&position);
+            let mut vertices = part.get_vertices();
+            vertices.translate(&delta, None);
+            part.set_vertices_prop(&vertices);
+            if let Some(bounds) = &mut part.get_bounds() {
+                bounds.update(&part.get_vertices(), Some(&self.get_velocity_prop()));
+                part.set_bounds(&bounds);
             }
         }
+    }
+
+    fn set_parts_prop(&mut self, value: &Vec<Body>) {
+        content_mut!(self).parts = Some(value.clone());
     }
 
     pub fn set_parts(&mut self, parts: Vec<Body>, auto_hull: Option<bool>) {
@@ -546,44 +547,34 @@ impl Body {
         }
 
         let auto_hull = auto_hull.unwrap_or(true);
-        let mut vertices: Vec<Vertex> = Vec::new();
-        let mut hull_centre: Vector = vector::create(0., 0.);
-        {
-            let mut content = content_mut!(self);
-            if parts.len() > 0 {
-                content.parts = Some(parts);
-            } else {
-                content.parts = None;
-                return;
-            }
 
-            if auto_hull {
-                if let Some(my_parts) = &content.parts {
-                    for part in my_parts.iter() {
-                        let part_content = content!(part);
-                        vertices.append(&mut part_content.vertices.clone())
-                    }
-                }
-                vertices::clockwise_sort(&mut vertices);
-                vertices::hull(&mut vertices);
-                hull_centre = vertices::centre(&vertices);
-            }
+        if parts.len() > 0 {
+            self.set_parts_prop(&parts);
+        } else {
+            return;
         }
+
         if auto_hull {
-            self.set_vertices(vertices);
-            {
-                let mut content = content_mut!(self);
-                vertices::translate(&mut content.vertices, &hull_centre, None);
+            let mut vertices = Vertices::new(Vec::new(), Some(self.clone()));
+            if let Some(parts) = self.get_parts_prop() {
+                for part in parts.iter() {
+                    vertices.append(&part.get_vertices());
+                }
             }
+            vertices.clockwise_sort();
+            vertices.hull();
+            self.set_vertices(&vertices);
+            let mut vertices = self.get_vertices();
+            vertices.translate(&vertices.centre(), None);
+            self.set_vertices_prop(&vertices);
         }
 
         let total = self.total_properties();
-        {
-            let mut content = content_mut!(self);
-            content.area = total.get_area();
-            content.position = total.get_centre();
-            content.position_prev = Some(total.get_centre());
-        }
+
+        self.set_area(total.get_area());
+        self.set_parent(&self.clone());
+        self.set_position_prop(&total.get_centre());
+        self.set_position_prev(&total.get_centre());
         self.set_mass(total.get_mass());
         self.set_inertia(total.get_inertia());
         self.set_position(total.get_centre(), None);
@@ -591,27 +582,31 @@ impl Body {
 
     pub fn set_centre(&mut self, centre: &Position, relative: Option<bool>) {
         let relative = relative.unwrap_or(false);
-        let mut content = content_mut!(self);
-        let position = content.position;
+
         if !relative {
-            if let Some(position_prev) = &mut content.position_prev {
-                position_prev.set_x(centre.get_x() - (position.get_x() - position_prev.get_x()));
-                position_prev.set_y(centre.get_y() - (position.get_y() - position_prev.get_y()));
+            if let Some(position_prev) = &mut self.get_position_prev() {
+                position_prev
+                    .set_x(centre.get_x() - (self.get_position().get_x() - position_prev.get_x()));
+                position_prev
+                    .set_y(centre.get_y() - (self.get_position().get_y() - position_prev.get_y()));
+                self.set_position_prev(&position_prev);
             } else {
                 let position_prev = Position::new(
-                    centre.get_x() - position.get_x(),
-                    centre.get_y() - position.get_y(),
+                    centre.get_x() - self.get_position().get_x(),
+                    centre.get_y() - self.get_position().get_y(),
                 );
-                content.position_prev = Some(position_prev);
+                self.set_position_prev(&position_prev);
             }
-            content.position.set_xy(centre);
         } else {
-            if let Some(position_prev) = &mut content.position_prev {
+            if let Some(position_prev) = &mut self.get_position_prev() {
                 position_prev.add_xy(centre);
+                self.set_position_prev(&position_prev);
             } else {
-                content.position_prev = Some(centre.clone());
+                self.set_position_prev(&centre);
             }
-            content.position.add_xy(centre);
+            let mut position = self.get_position();
+            position.add_xy(centre);
+            self.set_position_prop(&position);
         }
     }
 
@@ -622,41 +617,34 @@ impl Body {
     pub fn set_angle(&mut self, angle: f64, update_velocity: Option<bool>) {
         let update_velocity = update_velocity.unwrap_or(false);
 
-        let mut delta = 0.;
-        let mut body_position = Position::new(0., 0.);
-        let mut body_velocity = Velocity::new(0., 0.);
-        let mut body_id: Uuid = Uuid::new_v4();
-
-        {
-            let mut content = content_mut!(self);
-            delta = angle - content.angle;
-
-            if update_velocity {
-                content.angle_prev = content.angle;
-                content.angular_velocity = delta;
-                content.angular_speed = f64::abs(delta);
-            } else {
-                content.angle_prev += delta;
-            }
-
-            body_position = content.position;
-            body_velocity = content.velocity;
-            body_id = content.id;
+        let delta = angle - self.get_angle();
+        if update_velocity {
+            self.set_angle_prev(self.get_angle());
+            self.set_angular_velocity_prop(delta);
+            self.set_angular_speed_prop(f64::abs(delta));
+        } else {
+            self.set_angle_prev(self.get_angle_prev() + delta);
         }
 
         for part in &mut self.get_parts() {
-            let mut part_content = content_mut!(part);
-            part_content.angle += delta;
-            vertices::rotate(&mut part_content.vertices, delta, &body_position);
-            if let Some(axes) = &mut part_content.axes {
-                axes::rotate(axes, delta);
+            part.set_angle_prop(self.get_angle() + delta);
+            let mut vertices = part.get_vertices();
+            vertices.rotate(delta, &self.get_position());
+            part.set_vertices(&vertices);
+
+            if let Some(axes) = &mut part.get_axes() {
+                axes.rotate(delta);
+                part.set_axes(&axes);
             }
-            let vertices = part_content.vertices.clone();
-            if let Some(bounds) = &mut part_content.bounds {
-                bounds::update(bounds, &vertices, &Some(&body_velocity));
+
+            if let Some(bounds) = &mut part.get_bounds() {
+                bounds.update(&part.get_vertices(), Some(&self.get_velocity_prop()));
+                part.set_bounds(&bounds);
             }
-            if part_content.id != body_id {
-                vector::rotate_about(&mut part_content.position, delta, &body_position);
+            if !self.is_part_parent(part) {
+                let mut position = part.get_position();
+                position.rotate_about(delta, &self.get_position());
+                part.set_position_prop(&position);
             }
         }
     }
@@ -666,22 +654,21 @@ impl Body {
     }
 
     pub fn set_velocity(&mut self, velocity: &Velocity) {
-        let mut content = content_mut!(self);
-        let time_scale = content.delta_time.unwrap_or(common::BASE_DELTA) / common::BASE_DELTA;
+        let time_scale = self.get_delta_time().unwrap_or(common::BASE_DELTA) / common::BASE_DELTA;
 
         let position_prev = Position::new(
-            content.position.get_x() - velocity.get_x() * time_scale,
-            content.position.get_y() - velocity.get_y() * time_scale,
+            self.get_position().get_x() - velocity.get_x() * time_scale,
+            self.get_position().get_y() - velocity.get_y() * time_scale,
         );
 
         let velocity = Velocity::new(
-            (content.position.get_x() - position_prev.get_x()) / time_scale,
-            (content.position.get_y() - position_prev.get_y()) / time_scale,
+            (self.get_position().get_x() - position_prev.get_x()) / time_scale,
+            (self.get_position().get_y() - position_prev.get_y()) / time_scale,
         );
 
-        content.position_prev = Some(position_prev);
-        content.velocity = velocity;
-        content.speed = vector::magnitude(&content.velocity);
+        self.set_position_prev(&position_prev);
+        self.set_velocity_prop(&velocity);
+        self.set_speed_prop(self.get_velocity_prop().magnitude());
     }
 
     fn set_speed_prop(&mut self, value: f64) {
@@ -689,19 +676,17 @@ impl Body {
     }
 
     pub fn set_speed(&mut self, speed: f64) {
-        let velocity = self.get_velocity();
-        let normalised = vector::normalise(&velocity);
-        let velocity = vector::mult(&normalised, speed);
-        let velocity = Velocity::new_from(&velocity);
-        self.set_velocity(&velocity)
+        let mut velocity = self.get_velocity();
+        velocity.normalise();
+        velocity.mult(speed);
+        self.set_velocity(&velocity);
     }
 
     pub fn set_angular_velocity(&mut self, velocity: f64) {
-        let mut content = content_mut!(self);
-        let time_scale = content.delta_time.unwrap_or(common::BASE_DELTA) / common::BASE_DELTA;
-        content.angle_prev = content.angle - velocity * time_scale;
-        content.angular_velocity = (content.angle - content.angle_prev) / time_scale;
-        content.angular_speed = f64::abs(content.angular_velocity);
+        let time_scale = self.get_delta_time().unwrap_or(common::BASE_DELTA) / common::BASE_DELTA;
+        self.set_angle_prev(self.get_angle() - velocity * time_scale);
+        self.set_angular_velocity_prop((self.get_angle() - self.get_angle_prev()) / time_scale);
+        self.set_angular_speed_prop(f64::abs(self.get_angular_velocity()));
     }
 
     fn set_angular_speed_prop(&mut self, value: f64) {
@@ -714,127 +699,99 @@ impl Body {
     }
 
     pub fn set_area(&mut self, value: f64) {
-        let mut content = content_mut!(self);
-        content.area = value;
+        content_mut!(self).area = value;
     }
 
-    pub fn set_axes(&mut self, value: &Vec<Vertex>) {
-        let mut content = content_mut!(self);
-        content.axes = Some(value.clone());
+    pub fn set_axes(&mut self, value: &Axes) {
+        content_mut!(self).axes = Some(value.clone());
     }
 
     pub fn set_bounds(&mut self, value: &Bounds) {
-        let mut content = content_mut!(self);
-        content.bounds = Some(value.clone());
+        content_mut!(self).bounds = Some(*value);
     }
 
     pub fn set_chamfer(&mut self, value: &Vec<Vector>) {
-        let mut content = content_mut!(self);
-        content.chamfer = Some(value.clone());
+        content_mut!(self).chamfer = Some(value.clone());
     }
 
     pub fn set_circle_radius(&mut self, value: f64) {
-        let mut content = content_mut!(self);
-        content.circle_radius = Some(value);
+        content_mut!(self).circle_radius = Some(value);
     }
 
     pub fn set_collision_filter(&mut self, value: &CollisionFilter) {
-        let mut content = content_mut!(self);
-        content.collision_filter = value.clone();
+        content_mut!(self).collision_filter = *value;
     }
 
     pub fn set_constraint_impulse(&mut self, value: &ConstraintImpulse) {
-        let mut content = content_mut!(self);
-        content.constraint_impulse = value.clone();
+        content_mut!(self).constraint_impulse = *value;
     }
 
     pub fn set_delta_time(&mut self, value: f64) {
-        let mut content = content_mut!(self);
-        content.delta_time = Some(value);
+        content_mut!(self).delta_time = Some(value);
     }
 
     pub fn set_density(&mut self, value: f64) {
-        let mut content = content_mut!(self);
-        content.density = value;
+        content_mut!(self).density = value;
     }
 
     pub fn set_friction_air(&mut self, value: f64) {
-        let mut content = content_mut!(self);
-        content.friction_air = value;
+        content_mut!(self).friction_air = value;
     }
 
     pub fn set_friction_static(&mut self, value: f64) {
-        let mut content = content_mut!(self);
-        content.friction_static = value;
+        content_mut!(self).friction_static = value;
     }
 
     pub fn set_friction(&mut self, value: f64) {
-        let mut content = content_mut!(self);
-        content.friction = value;
+        content_mut!(self).friction = value;
     }
 
     pub fn set_is_sensor(&mut self, value: bool) {
-        let mut content = content_mut!(self);
-        content.is_sensor = value;
+        content_mut!(self).is_sensor = value;
     }
 
     pub fn set_is_sleeping(&mut self, value: bool) {
-        let mut content = content_mut!(self);
-        content.is_sleeping = value;
+        content_mut!(self).is_sleeping = value;
     }
 
     pub fn set_motion(&mut self, value: f64) {
-        let mut content = content_mut!(self);
-        content.motion = value;
+        content_mut!(self).motion = value;
     }
 
     pub fn set_position_impulse(&mut self, value: &Position) {
-        let mut content = content_mut!(self);
-        content.position_impulse = value.clone();
+        content_mut!(self).position_impulse = *value;
     }
 
     pub fn set_render(&mut self, value: &Render) {
-        let mut content = content_mut!(self);
-        content.render = value.clone();
+        content_mut!(self).render = *value;
     }
 
     pub fn set_resitution(&mut self, value: f64) {
-        let mut content = content_mut!(self);
-        content.resitution = value;
+        content_mut!(self).resitution = value;
     }
 
     pub fn set_shape_type(&mut self, value: &ShapeType) {
-        let mut content = content_mut!(self);
-        content.shape_type = value.clone();
+        content_mut!(self).shape_type = *value;
     }
 
     pub fn set_sleep_threshold(&mut self, value: u32) {
-        let mut content = content_mut!(self);
-        content.sleep_threshold = value;
+        content_mut!(self).sleep_threshold = value;
     }
 
     pub fn set_slop(&mut self, value: f64) {
-        let mut content = content_mut!(self);
-        content.slop = value;
+        content_mut!(self).slop = value;
     }
 
     pub fn set_time_scale(&mut self, value: u16) {
-        let mut content = content_mut!(self);
-        content.time_scale = value;
+        content_mut!(self).time_scale = value;
     }
 
     pub fn set_torque(&mut self, value: f64) {
-        let mut content = content_mut!(self);
-        content.torque = value;
+        content_mut!(self).torque = value;
     }
 
     pub fn set_total_contacts(&mut self, value: u32) {
-        let mut content = content_mut!(self);
-        content.total_contacts = value;
-    }
-
-    fn set_inertia_prop(&mut self, value: f64) {
-        content_mut!(self).inertia = value;
+        content_mut!(self).total_contacts = value;
     }
 
     fn set_inverse_mass(&mut self, value: f64) {
@@ -849,12 +806,8 @@ impl Body {
         content_mut!(self)._original = value;
     }
 
-    fn set_position_prev(&mut self, value: &impl XY) {
-        if let Some(position_prev) = &mut content_mut!(self).position_prev {
-            position_prev.set_xy(value);
-        } else {
-            content_mut!(self).position_prev = Some(Position::new_from(value));
-        }
+    fn set_position_prev(&mut self, value: &Position) {
+        content_mut!(self).position_prev = Some(*value);
     }
 
     fn set_angle_prev(&mut self, value: f64) {
@@ -907,12 +860,13 @@ impl Body {
 
     // MARK: Actions
     // region: Actions
-    pub fn translate(&mut self, tranlation: &impl XY, update_velocity: Option<bool>) {
-        let mut position: Position = Position::new(0., 0.);
-        {
-            let content = content!(self);
-            position = Position::new_from(&vector::add(&content.position, tranlation));
-        }
+    pub fn is_part_parent(&self, part: &Body) -> bool {
+        self.get_id() == part.get_id()
+    }
+
+    pub fn translate(&mut self, translation: &impl XY, update_velocity: Option<bool>) {
+        let mut position = self.get_position();
+        position.add_xy(translation);
         self.set_position(position, update_velocity);
     }
 
@@ -942,53 +896,44 @@ impl Body {
         let mut total_area = 0.;
         let mut total_inertia = 0.;
 
-        let point = if let Some(p) = point {
-            Position::new_from(p)
+        let point = if let Some(point) = point {
+            Position::new_from(point)
         } else {
             self.get_position()
         };
 
-        let parent_id = self.get_id();
-        let parent_velocity = self.get_velocity_prop();
         for part in self.get_parts().iter_mut() {
-            {
-                let mut part_content = content_mut!(part);
-                vertices::scale(&mut part_content.vertices, scale_x, scale_y, Some(&point));
-                part_content.axes = Some(axes::from_vertices(&part_content.vertices));
-                part_content.area = vertices::area(&part_content.vertices, None);
-            }
+            let mut vertices = part.get_vertices();
+            vertices.scale(scale_x, scale_y, Some(&point));
+            part.set_vertices_prop(&vertices);
+
+            part.set_axes(&Axes::from_vertices(&part.get_vertices()));
+            part.set_area(part.get_vertices().area(None));
             part.set_mass(self.get_density() * part.get_area());
-            {
-                let mut part_content = content_mut!(part);
-                let position = Position::new(
-                    part_content.position.get_x() * -1.,
-                    part_content.position.get_y() * -1.,
-                );
-                vertices::translate(&mut part_content.vertices, &position, None);
-            }
-            let inertia = INERTIA_SCALE * vertices::innertia(&part.get_vertices(), part.get_mass());
-            part.set_inertia(inertia);
-            {
-                let mut part_content = content_mut!(part);
-                let position = part_content.position.clone();
-                vertices::translate(&mut part_content.vertices, &position, None);
-            }
-            if part.get_id() != parent_id {
+            let mut position = part.get_position();
+            position.neg();
+            let mut vertices = part.get_vertices();
+            vertices.translate(&position, None);
+            part.set_vertices_prop(&vertices);
+            part.set_inertia(INERTIA_SCALE * part.get_vertices().innertia(part.get_mass()));
+            let mut vertices = part.get_vertices();
+            vertices.translate(&part.get_position(), None);
+            part.set_vertices_prop(&vertices);
+
+            if !self.is_part_parent(part) {
                 total_area += part.get_area();
                 total_inertia += part.get_inertia();
             }
-            {
-                let mut part_content = content_mut!(part);
-                let x = point.get_x() + (part_content.position.get_x() - point.get_x()) * scale_x;
-                let y = point.get_y() + (part_content.position.get_y() - point.get_y()) * scale_y;
-                part_content.position.set_x(x);
-                part_content.position.set_y(y);
 
-                let vertices = part_content.vertices.clone();
-                if let Some(bounds) = &mut part_content.bounds {
-                    // what happens if bounds == None -> no idea. Need futher testing. ... famous last words
-                    bounds::update(bounds, &vertices, &Some(&parent_velocity));
-                }
+            let x = point.get_x() + (part.get_position().get_x() - point.get_x()) * scale_x;
+            let y = point.get_y() + (part.get_position().get_y() - point.get_y()) * scale_y;
+            let position = Position::new(x, y);
+            part.set_position_prop(&position);
+
+            if let Some(bounds) = &mut part.get_bounds() {
+                // what happens if bounds == None -> no idea. Need futher testing. ... famous last words
+                bounds.update(&part.get_vertices(), Some(&self.get_velocity()));
+                part.set_bounds(&bounds);
             }
         }
 
@@ -1007,8 +952,7 @@ impl Body {
 
                 self.set_circle_radius(circle_radius * scale_x);
             } else {
-                let mut content = content_mut!(self);
-                content.circle_radius = None;
+                content_mut!(self).circle_radius = None;
             }
         }
     }
@@ -1043,85 +987,74 @@ impl Body {
         let velocity_y = (velocity_prev_y * friction_air)
             + (self.get_force().get_y() / self.get_mass()) * delta_time_squared;
 
-        // self.set_velocity_prop(&Velocity::new(velocity_x, velocity_y));
-        // self.set_position_prev(&self.get_position());
-        // self.set_position_prop(&vector::add(
-        //     &self.get_position(),
-        //     &self.get_velocity_prop(),
-        // ));
-        // self.set_delta_time(delta_time);
-
-        let mut parent_velocity = Velocity::new(0., 0.);
-        {
-            let mut content = content_mut!(self);
-            content.velocity = Velocity::new(velocity_x, velocity_y);
-            content.position_prev = Some(content.position.clone());
-            parent_velocity = content.velocity.clone();
-
-            content.position.add_xy(&parent_velocity);
-            content.delta_time = Some(delta_time);
-        }
+        self.set_velocity_prop(&Velocity::new(velocity_x, velocity_y));
+        self.set_position_prev(&self.get_position());
+        let mut position = self.get_position();
+        position.add_xy(&self.get_velocity_prop());
+        self.set_position_prop(&position);
+        self.set_delta_time(delta_time);
 
         // update angular velocity with Verlet integration
         let angular_velocity =
             ((self.get_angle() - self.get_angle_prev()) * friction_air * correction)
                 + (self.get_torque() / self.get_inertia()) * delta_time_squared;
-
-        {
-            let mut content = content_mut!(self);
-            content.angular_velocity = angular_velocity;
-            content.angle_prev = content.angle;
-            content.angle += angular_velocity;
-        }
-
-        let parent_id = self.get_id();
-        let parent_position = self.get_position();
+        self.set_angular_velocity_prop(angular_velocity);
+        self.set_angle_prev(self.get_angle());
+        self.set_angle_prop(self.get_angle() + angular_velocity);
 
         // transform the body geometry
         for part in &mut self.get_parts() {
-            let mut part_content = content_mut!(part);
+            let mut vertices = part.get_vertices();
+            vertices.translate(&self.get_velocity(), None);
+            part.set_vertices_prop(&vertices);
 
-            vertices::translate(&mut part_content.vertices, &parent_velocity, None);
-
-            if part_content.id != parent_id {
-                part_content.position.add_xy(&parent_velocity);
+            if !self.is_part_parent(part) {
+                let mut position = part.get_position();
+                position.add_xy(&self.get_velocity());
+                part.set_position_prop(&position);
             }
 
             if angular_velocity != 0. {
-                vertices::rotate(
-                    &mut part_content.vertices,
-                    angular_velocity,
-                    &parent_position,
-                );
-                if let Some(axes) = &mut part_content.axes {
-                    axes::rotate(axes, angular_velocity);
+                let mut vertices = part.get_vertices();
+                vertices.rotate(angular_velocity, &self.get_position());
+                part.set_vertices_prop(&vertices);
+
+                if let Some(axes) = &mut part.get_axes() {
+                    axes.rotate(angular_velocity);
+                    part.set_axes(&axes);
                 }
 
-                if part_content.id != parent_id {
-                    vector::rotate_about(
-                        &mut part_content.position,
-                        angular_velocity,
-                        &parent_position,
-                    );
+                if !self.is_part_parent(part) {
+                    let mut position = part.get_position();
+                    position.rotate_about(angular_velocity, &self.get_position());
+                    part.set_position_prop(&position);
                 }
             }
-            let vertices = part_content.vertices.clone();
-            if let Some(bounds) = &mut part_content.bounds {
-                bounds::update(bounds, &vertices, &Some(&parent_velocity));
+
+            if let Some(bounds) = &mut part.get_bounds() {
+                bounds.update(&part.get_vertices(), Some(&self.get_velocity()));
+                part.set_bounds(&bounds);
             }
         }
     }
 
+    fn set_force(&mut self, value: &Force) {
+        content_mut!(self).force = *value;
+    }
+
     pub fn apply_force(&mut self, position: &Position, force: &Force) {
-        let offset = vector::create(
+        let offset = Vector::create(
             position.get_x() - self.get_position().get_x(),
             position.get_y() - self.get_position().get_y(),
         );
-        {
-            let mut content = content_mut!(self);
-            content.force.add_xy(force);
-            content.torque += offset.get_x() * force.get_y() - offset.get_y() * force.get_x();
-        }
+
+        let mut my_force = self.get_force();
+        my_force.add_xy(force);
+        self.set_force(&my_force);
+
+        let mut torque = self.get_torque();
+        torque += offset.get_x() * force.get_y() - offset.get_y() * force.get_x();
+        self.set_torque(torque);
     }
     // endregion: Actions
 }
@@ -1138,7 +1071,7 @@ mod tests {
             position::{self, Position},
             xy::XY,
         },
-        geometry::bounds::BoundsPart,
+        geometry::{bounds::BoundsPart, vertex},
         test_utils::{
             body_test_utils::{assert_position, assert_velocity},
             common_test_utils::assert_float,
@@ -1162,10 +1095,6 @@ mod tests {
         content.id = common::next_id();
         content.angle = 42.;
         content.angle_prev = 41.;
-        content.axes = Some(vec![
-            Vertex::new(None, 1., 1., 0, false),
-            Vertex::new(None, -1., -1., 1, false),
-        ]);
         content.position = Position::new(2., 2.);
         content.position_prev = Some(Position::new(1., 1.));
         content.bounds = Some(test_bounds());
@@ -1184,7 +1113,13 @@ mod tests {
         content.inverse_inertia = 16.;
         content.inverse_mass = 17.;
 
-        content.vertices = vec_vector_to_vec_vertex(test_square());
+        content.vertices = Vertices::new(test_square(), None);
+
+        let axes = vec![
+            Vertex::new(None, 1., 1., 0, false),
+            Vertex::new(None, -1., -1., 1, false),
+        ];
+        content.axes = Some(Axes::new(&axes));
 
         let mut parts = [1., 2.]
             .iter()
@@ -1213,14 +1148,12 @@ mod tests {
                 part_content.inverse_mass += increase;
 
                 part_content.position = Position::new(*increase, *increase);
-                part_content.vertices = vec_vector_to_vec_vertex(test_square())
-                    .iter_mut()
-                    .map(|vertex| {
-                        vertex.set_x(vertex.get_x() + increase);
-                        vertex.set_y(vertex.get_y() + increase);
-                        vertex.clone()
-                    })
-                    .collect_vec();
+                part_content.vertices = Vertices::new(test_square(), None);
+                for (index, vertex) in part_content.vertices.iter_mut().enumerate() {
+                    vertex.set_x(vertex.get_x() + increase);
+                    vertex.set_y(vertex.get_y() + increase);
+                }
+
                 body_from_content(part_content)
             })
             .collect_vec();
@@ -1890,16 +1823,18 @@ mod tests {
     fn set_angle_should_be_able_to_set_the_angle_on_a_default_body_updating_the_velocity() {
         // Arrange
         let mut content = BodyContent::default_contant();
+
         content.id = common::next_id();
         content.angle = 42.;
         content.angle_prev = 41.;
-        content.axes = Some(vec![
+        let axes = vec![
             Vertex::new(None, 1., 1., 0, false),
             Vertex::new(None, -1., -1., 1, false),
-        ]);
+        ];
+        content.axes = Some(Axes::new(&axes));
         content.position = Position::new(0., 0.);
         content.bounds = Some(test_bounds());
-        content.vertices = vec_vector_to_vec_vertex(test_square());
+        content.vertices = Vertices::new(test_square(), None);
 
         let mut parts = [1., 2.]
             .iter()
@@ -1914,14 +1849,11 @@ mod tests {
                 }
                 part_content.bounds = Some(test_bounds());
                 part_content.position = Position::new(*increase, *increase);
-                part_content.vertices = vec_vector_to_vec_vertex(test_square())
-                    .iter_mut()
-                    .map(|vertex| {
-                        vertex.set_x(vertex.get_x() + increase);
-                        vertex.set_y(vertex.get_y() + increase);
-                        vertex.clone()
-                    })
-                    .collect_vec();
+                part_content.vertices = Vertices::new(test_square(), None);
+                for (index, vertex) in part_content.vertices.iter_mut().enumerate() {
+                    vertex.set_x(vertex.get_x() + increase);
+                    vertex.set_y(vertex.get_y() + increase);
+                }
                 body_from_content(part_content)
             })
             .collect_vec();
@@ -2033,13 +1965,14 @@ mod tests {
         content.id = common::next_id();
         content.angle = 42.;
         content.angle_prev = 41.;
-        content.axes = Some(vec![
+        let axes = vec![
             Vertex::new(None, 1., 1., 0, false),
             Vertex::new(None, -1., -1., 1, false),
-        ]);
+        ];
+        content.axes = Some(Axes::new(&axes));
         content.position = Position::new(0., 0.);
         content.bounds = Some(test_bounds());
-        content.vertices = vec_vector_to_vec_vertex(test_square());
+        content.vertices = Vertices::new(test_square(), None);
 
         let mut parts = [1., 2.]
             .iter()
@@ -2054,14 +1987,11 @@ mod tests {
                 }
                 part_content.bounds = Some(test_bounds());
                 part_content.position = Position::new(*increase, *increase);
-                part_content.vertices = vec_vector_to_vec_vertex(test_square())
-                    .iter_mut()
-                    .map(|vertex| {
-                        vertex.set_x(vertex.get_x() + increase);
-                        vertex.set_y(vertex.get_y() + increase);
-                        vertex.clone()
-                    })
-                    .collect_vec();
+                part_content.vertices = Vertices::new(test_square(), None);
+                for (index, vertex) in part_content.vertices.iter_mut().enumerate() {
+                    vertex.set_x(vertex.get_x() + increase);
+                    vertex.set_y(vertex.get_y() + increase);
+                }
                 body_from_content(part_content)
             })
             .collect_vec();
@@ -2214,7 +2144,7 @@ mod tests {
         content.position = Position::new(2., 2.);
         content.position_prev = Some(Position::new(1., 1.));
         content.bounds = Some(test_bounds());
-        content.vertices = vec_vector_to_vec_vertex(test_square());
+        content.vertices = Vertices::new(test_square(), None);
         content.bounds = Some(test_bounds());
 
         let mut parts = [1., 2.]
@@ -2227,14 +2157,11 @@ mod tests {
                 part_content.inertia += increase;
                 part_content.bounds = Some(test_bounds());
                 part_content.position = Position::new(*increase, *increase);
-                part_content.vertices = vec_vector_to_vec_vertex(test_square())
-                    .iter_mut()
-                    .map(|vertex| {
-                        vertex.set_x(vertex.get_x() + increase);
-                        vertex.set_y(vertex.get_y() + increase);
-                        vertex.clone()
-                    })
-                    .collect_vec();
+                part_content.vertices = Vertices::new(test_square(), None);
+                for (index, vertex) in part_content.vertices.iter_mut().enumerate() {
+                    vertex.set_x(vertex.get_x() + increase);
+                    vertex.set_y(vertex.get_y() + increase);
+                }
                 body_from_content(part_content)
             })
             .collect_vec();
@@ -2307,7 +2234,7 @@ mod tests {
         content.position = Position::new(2., 2.);
         content.position_prev = Some(Position::new(1., 1.));
         content.bounds = Some(test_bounds());
-        content.vertices = vec_vector_to_vec_vertex(test_square());
+        content.vertices = Vertices::new(test_square(), None);
         content.bounds = Some(test_bounds());
 
         let mut parts = [1., 2.]
@@ -2320,14 +2247,11 @@ mod tests {
                 part_content.inertia += increase;
                 part_content.bounds = Some(test_bounds());
                 part_content.position = Position::new(*increase, *increase);
-                part_content.vertices = vec_vector_to_vec_vertex(test_square())
-                    .iter_mut()
-                    .map(|vertex| {
-                        vertex.set_x(vertex.get_x() + increase);
-                        vertex.set_y(vertex.get_y() + increase);
-                        vertex.clone()
-                    })
-                    .collect_vec();
+                part_content.vertices = Vertices::new(test_square(), None);
+                for (index, vertex) in part_content.vertices.iter_mut().enumerate() {
+                    vertex.set_x(vertex.get_x() + increase);
+                    vertex.set_y(vertex.get_y() + increase);
+                }
                 body_from_content(part_content)
             })
             .collect_vec();
@@ -2394,7 +2318,7 @@ mod tests {
         content.position = Position::new(2., 2.);
         content.position_prev = Some(Position::new(1., 1.));
         content.bounds = Some(test_bounds());
-        content.vertices = vec_vector_to_vec_vertex(test_square());
+        content.vertices = Vertices::new(test_square(), None);
         content.velocity = Velocity::new(42., 42.);
 
         let mut parts = [1., 2.]
@@ -2404,14 +2328,11 @@ mod tests {
                 part_content.id = common::next_id();
                 part_content.bounds = Some(test_bounds());
                 part_content.position = Position::new(*increase, *increase);
-                part_content.vertices = vec_vector_to_vec_vertex(test_square())
-                    .iter_mut()
-                    .map(|vertex| {
-                        vertex.set_x(vertex.get_x() + increase);
-                        vertex.set_y(vertex.get_y() + increase);
-                        vertex.clone()
-                    })
-                    .collect_vec();
+                part_content.vertices = Vertices::new(test_square(), None);
+                for (index, vertex) in part_content.vertices.iter_mut().enumerate() {
+                    vertex.set_x(vertex.get_x() + increase);
+                    vertex.set_y(vertex.get_y() + increase);
+                }
                 body_from_content(part_content)
             })
             .collect_vec();
@@ -2471,7 +2392,7 @@ mod tests {
         content.position = Position::new(2., 2.);
         content.position_prev = Some(Position::new(1., 1.));
         content.bounds = Some(test_bounds());
-        content.vertices = vec_vector_to_vec_vertex(test_square());
+        content.vertices = Vertices::new(test_square(), None);
         content.velocity = Velocity::new(42., 42.);
 
         let mut parts = [1., 2.]
@@ -2481,14 +2402,11 @@ mod tests {
                 part_content.id = common::next_id();
                 part_content.bounds = Some(test_bounds());
                 part_content.position = Position::new(*increase, *increase);
-                part_content.vertices = vec_vector_to_vec_vertex(test_square())
-                    .iter_mut()
-                    .map(|vertex| {
-                        vertex.set_x(vertex.get_x() + increase);
-                        vertex.set_y(vertex.get_y() + increase);
-                        vertex.clone()
-                    })
-                    .collect_vec();
+                part_content.vertices = Vertices::new(test_square(), None);
+                for (index, vertex) in part_content.vertices.iter_mut().enumerate() {
+                    vertex.set_x(vertex.get_x() + increase);
+                    vertex.set_y(vertex.get_y() + increase);
+                }
                 body_from_content(part_content)
             })
             .collect_vec();
@@ -2576,7 +2494,7 @@ mod tests {
     #[test]
     fn set_vertices_should_mutate_the_body_to_contain_valid_values() {
         // Arrange
-        let vertices = vec_vector_to_vec_vertex(test_square());
+        let vertices = Vertices::new(test_square(), None);
 
         let mut content = BodyContent::default_contant();
         content.id = common::next_id();
@@ -2595,7 +2513,7 @@ mod tests {
         let mut body = body_from_content(content);
 
         // Act
-        body.set_vertices(vertices);
+        body.set_vertices(&vertices);
 
         // Assert
         assert_float(body.get_area(), 4.0);

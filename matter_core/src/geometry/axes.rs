@@ -6,8 +6,10 @@ use std::slice::Iter;
 use std::slice::IterMut;
 
 use super::vector::Vector;
+use super::vertices::Vertices;
 use super::{vector, vertex::Vertex};
 
+#[derive(Clone)]
 pub struct Axes {
     value: Vec<Vertex>,
 }
@@ -31,11 +33,21 @@ impl Axes {
         self.value.iter()
     }
 
-    pub fn iter_mut(&self) -> IterMut<Vertex> {
+    pub fn iter_mut(&mut self) -> IterMut<Vertex> {
         self.value.iter_mut()
     }
 
-    pub fn from_vertices(vertices: &Vec<Vertex>) -> Self {
+    pub fn len(&self) -> usize {
+        self.value.len()
+    }
+
+    pub fn new(axes: &Vec<Vertex>) -> Self {
+        Axes {
+            value: axes.clone(),
+        }
+    }
+
+    pub fn from_vertices(vertices: &Vertices) -> Self {
         let mut axes: OrderedHashMap<Vertex> = OrderedHashMap::new();
         let vertices_len = vertices.len();
 
@@ -48,7 +60,7 @@ impl Axes {
             let mut normal = Vector::create(x, y);
             normal.normalise();
 
-            let vertex = vertices[index];
+            let vertex = &vertices[index];
             let normal = Vertex::new(
                 vertex.get_body(),
                 normal.get_x(),

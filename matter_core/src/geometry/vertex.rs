@@ -1,6 +1,6 @@
 use crate::{
+    body::body::Body,
     core::xy::{XYNew, XY},
-    Body,
 };
 
 use super::vector::Vector;
@@ -33,7 +33,9 @@ impl XY for Vertex {
 }
 
 impl From<Vector> for Vertex {
-    fn from(value: Vector) -> Self {}
+    fn from(value: Vector) -> Self {
+        Vertex::from_xy(None, &value, 0, false)
+    }
 }
 
 impl Vertex {
