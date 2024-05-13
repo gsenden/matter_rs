@@ -6,7 +6,7 @@ use crate::{
     geometry::{
         bounds::{Bounds, BoundsPart},
         vector,
-        vertices::Vertex,
+        vertex::Vertex,
     },
 };
 
@@ -57,45 +57,45 @@ pub fn vec_vector_to_vec_vertex(vectors: Vec<Vector>) -> Vec<Vertex> {
 }
 
 pub fn test_square() -> Vec<Vector> {
-    let point_a = vector::create(1.0, 1.0);
-    let point_b = vector::create(3.0, 1.0);
-    let point_c = vector::create(3.0, 3.0);
-    let point_d = vector::create(1.0, 3.0);
+    let point_a = Vector::create(1.0, 1.0);
+    let point_b = Vector::create(3.0, 1.0);
+    let point_c = Vector::create(3.0, 3.0);
+    let point_d = Vector::create(1.0, 3.0);
     vec![point_a, point_b, point_c, point_d]
 }
 
 pub fn test_square_with_decimals() -> Vec<Vector> {
-    let point_a = vector::create(0.0, 0.0);
-    let point_b = vector::create(40.1, 0.0);
-    let point_c = vector::create(40.1, 40.1);
-    let point_d = vector::create(0.0, 40.1);
+    let point_a = Vector::create(0.0, 0.0);
+    let point_b = Vector::create(40.1, 0.0);
+    let point_c = Vector::create(40.1, 40.1);
+    let point_d = Vector::create(0.0, 40.1);
     vec![point_a, point_b, point_c, point_d]
 }
 
 pub fn test_square_with_decimals_signed() -> Vec<Vector> {
-    let point_a = vector::create(0.0, 0.0);
-    let point_b = vector::create(-40.1, 0.0);
-    let point_c = vector::create(-40.1, -40.1);
-    let point_d = vector::create(0.0, -40.1);
+    let point_a = Vector::create(0.0, 0.0);
+    let point_b = Vector::create(-40.1, 0.0);
+    let point_c = Vector::create(-40.1, -40.1);
+    let point_d = Vector::create(0.0, -40.1);
     vec![point_a, point_b, point_c, point_d]
 }
 
 pub fn test_shape_convex() -> Vec<Vector> {
-    let point_a = vector::create(40.1, 40.1);
-    let point_b = vector::create(0.0, 40.1);
-    let point_c = vector::create(0.0, 0.0);
-    let point_d = vector::create(40.1, 0.0);
+    let point_a = Vector::create(40.1, 40.1);
+    let point_b = Vector::create(0.0, 40.1);
+    let point_c = Vector::create(0.0, 0.0);
+    let point_d = Vector::create(40.1, 0.0);
     vec![point_a, point_b, point_c, point_d]
 }
 
 pub fn test_shape_non_convex() -> Vec<Vector> {
-    let point_a = vector::create(1.0, 1.0);
-    let point_b = vector::create(5.0, 1.0);
-    let point_c = vector::create(5.0, 3.0);
-    let point_d = vector::create(4.0, 4.0);
-    let point_e = vector::create(3.0, 3.0);
-    let point_f = vector::create(2.0, 4.0);
-    let point_g = vector::create(1.0, 3.0);
+    let point_a = Vector::create(1.0, 1.0);
+    let point_b = Vector::create(5.0, 1.0);
+    let point_c = Vector::create(5.0, 3.0);
+    let point_d = Vector::create(4.0, 4.0);
+    let point_e = Vector::create(3.0, 3.0);
+    let point_f = Vector::create(2.0, 4.0);
+    let point_g = Vector::create(1.0, 3.0);
 
     vec![
         point_a, point_b, point_c, point_d, point_e, point_f, point_g,

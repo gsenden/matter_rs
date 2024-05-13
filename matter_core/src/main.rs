@@ -10,7 +10,7 @@ use crate::core::xy::XY;
 use crate::test_utils::geometry_test_utils;
 
 mod geometry;
-use crate::geometry::vector;
+use crate::geometry::vector::{self, Vector};
 
 mod body;
 
@@ -105,6 +105,6 @@ fn main() {
     // let c = b.as_ref().borrow().parent.upgrade().unwrap().as_ref().borrow().x;
     // println!("{}",c);
 
-    let vector = vector::create(2.0, 2.0);
+    let vector = Vector::create(2.0, 2.0);
     println!("Hello, world! {}", vector.get_x());
 }
