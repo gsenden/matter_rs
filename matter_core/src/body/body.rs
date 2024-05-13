@@ -6,7 +6,7 @@ use super::{
 use crate::{
     core::{
         collision_filter::CollisionFilter,
-        common::{self, OrderedHashMap, ShapeType},
+        common::{self, OrderedHashMap, ShapeType, BASE_DELTA},
         constraint_impulse::ConstraintImpulse,
         force::Force,
         position::{self, Position},
@@ -437,7 +437,7 @@ impl Body {
         self.set_inertia(moment * (value / 6.));
         self.set_mass_prop(value);
         self.set_inverse_mass(1. / value);
-        self.set_density(value / self.get_area());
+        self.set_density_prop(value / self.get_area());
     }
 
     fn set_vertices_prop(&mut self, value: &Vertices) {
@@ -734,8 +734,13 @@ impl Body {
         content_mut!(self).delta_time = Some(value);
     }
 
-    pub fn set_density(&mut self, value: f64) {
+    pub fn set_density_prop(&mut self, value: f64) {
         content_mut!(self).density = value;
+    }
+
+    pub fn set_density(&mut self, value: f64) {
+        self.set_mass(value * self.get_area());
+        self.set_density_prop(value);
     }
 
     pub fn set_friction_air(&mut self, value: f64) {
@@ -823,7 +828,7 @@ impl Body {
     }
 
     fn set_from_body_original(&mut self, value: &BodyOriginal) {
-        self.set_density(value.get_density());
+        self.set_density_prop(value.get_density());
         self.set_friction(value.get_friction());
         self.set_inertia_prop(value.get_inertia());
         self.set_inverse_inertia(value.get_inverse_inertia());
@@ -844,7 +849,7 @@ impl Body {
                 part.set_friction(1.);
                 part.set_mass_prop(f64::INFINITY);
                 part.set_inertia_prop(f64::INFINITY);
-                part.set_density(f64::INFINITY);
+                part.set_density_prop(f64::INFINITY);
                 part.set_inverse_mass(0.);
                 part.set_inverse_inertia(0.);
                 part.set_position_prev(&part.get_position());
@@ -1060,6 +1065,25 @@ impl Body {
         torque += offset.get_x() * force.get_y() - offset.get_y() * force.get_x();
         self.set_torque(torque);
     }
+
+    pub fn update_velocities(&mut self) {
+        let time_scale = BASE_DELTA / self.get_delta_time().unwrap_or(1.);
+        let mut body_velocity = self.get_velocity_prop();
+
+        let position_prev = self.get_position_prev().unwrap_or(Position::new(0., 0.));
+
+        body_velocity.set_x((self.get_position().get_x() - position_prev.get_x()) * time_scale);
+        body_velocity.set_y((self.get_position().get_y() - position_prev.get_y()) * time_scale);
+
+        self.set_speed_prop(f64::sqrt(
+            (body_velocity.get_x() * body_velocity.get_x())
+                + (body_velocity.get_y() * body_velocity.get_y()),
+        ));
+
+        self.set_angular_velocity_prop((self.get_angle() - self.get_angle_prev()) * time_scale);
+        self.set_angular_speed_prop(f64::abs(self.get_angular_velocity_prop()));
+    }
+
     // endregion: Actions
 }
 
@@ -1116,6 +1140,7 @@ mod tests {
         content.friction = 666.;
         content.inverse_inertia = 16.;
         content.inverse_mass = 17.;
+        content.area = 1600.;
 
         content.vertices = Vertices::new(test_square(), None);
 
@@ -1165,6 +1190,20 @@ mod tests {
         body_from_content(content)
     }
     // endregion: Helpers
+
+    #[test]
+    fn update_velocities_should_be_able_update_all_velocities_and_speeds() {
+        // Arrange
+        let mut body = test_body();
+
+        // Act
+        body.update_velocities();
+
+        // Assert
+        assert_float(body.get_speed_prop(), 7.365695637359869);
+        assert_float(body.get_angular_velocity_prop(), 5.208333333333333);
+        assert_float(body.get_angular_speed_prop(), 5.208333333333333);
+    }
 
     #[test]
     fn set_static_should_be_able_to_set_a_default_body_to_static() {
@@ -2142,7 +2181,6 @@ mod tests {
         assert_xy(&body.get_position_prev().unwrap(), 41., 42.);
     }
 
-    //MARK: HERE
     #[test]
     fn set_parts_should_update_body_with_parts_with_setting_autohull_to_true() {
         // Arrange
@@ -2549,15 +2587,7 @@ mod tests {
     fn set_mass_should_mutate_value_of_mass_inverse_mass_inertia_inverse_inertia_and_density_to_valid_values(
     ) {
         // Arrange
-        let mut content = BodyContent::default_contant();
-        content.inertia = 1706.6666666666667;
-        content.inverse_inertia = 0.0005859375;
-        content.mass = 1.6;
-        content.inverse_mass = 0.625;
-        content.density = 0.001;
-        content.area = 1600.;
-        let mut body = body_from_content(content);
-
+        let mut body = test_body();
         let mass = 42.1;
 
         // Act
@@ -2566,9 +2596,26 @@ mod tests {
         // Assert
         assert_float(body.get_mass(), 42.1);
         assert_float(body.get_inverse_mass(), 0.023752969121140142);
-        assert_float(body.get_inertia(), 44906.666666666664);
-        assert_float(body.get_inverse_inertia(), 0.000022268408551068885);
+        assert_float(body.get_inertia(), 15.30909090909091);
+        assert_float(body.get_inverse_inertia(), 0.065320665083135387);
         assert_float(body.get_density(), 0.026312500000000003);
+    }
+
+    #[test]
+    fn set_density_should_mutate_the_body_with_valid_values() {
+        // Arrange
+        let mut body = test_body();
+        let density = 42.1;
+
+        // Act
+        body.set_density(density);
+
+        // Assert
+        assert_float(body.get_mass(), 67360.);
+        assert_float(body.get_inverse_mass(), 0.000014845605700712589);
+        assert_float(body.get_inertia(), 24494.545454545456);
+        assert_float(body.get_inverse_inertia(), 0.00004082541567695962);
+        assert_float(body.get_density(), 42.1);
     }
 
     #[test]
