@@ -1083,8 +1083,52 @@ impl Body {
         self.set_angular_velocity_prop((self.get_angle() - self.get_angle_prev()) * time_scale);
         self.set_angular_speed_prop(f64::abs(self.get_angular_velocity_prop()));
     }
-
     // endregion: Actions
+
+    pub fn set_one(&mut self, option: &BodyOption) {
+        match option {
+            BodyOption::Angle(_) => todo!(),
+            BodyOption::AnglePrev(_) => todo!(),
+            BodyOption::AngularSpeed(_) => todo!(),
+            BodyOption::AngularVelocity(_) => todo!(),
+            BodyOption::Area(value) => self.set_area(*value),
+            BodyOption::Axes(_) => todo!(),
+            BodyOption::Bounds(_) => todo!(),
+            BodyOption::Chamfer(_) => todo!(),
+            BodyOption::CircleRadius(_) => todo!(),
+            BodyOption::CollisionFilter(_) => todo!(),
+            BodyOption::ConstraintImpulse(_) => todo!(),
+            BodyOption::DeltaTime(_) => todo!(),
+            BodyOption::Density(_) => todo!(),
+            BodyOption::Force(_) => todo!(),
+            BodyOption::Friction(_) => todo!(),
+            BodyOption::FrictionAir(_) => todo!(),
+            BodyOption::FrictionStatic(_) => todo!(),
+            BodyOption::Inertia(_) => todo!(),
+            BodyOption::IsSensor(_) => todo!(),
+            BodyOption::IsSleeping(_) => todo!(),
+            BodyOption::IsStatic(_) => todo!(),
+            BodyOption::Mass(_) => todo!(),
+            BodyOption::Motion(_) => todo!(),
+            BodyOption::Original(_) => todo!(),
+            BodyOption::Parent(_) => todo!(),
+            BodyOption::Parts(_) => todo!(),
+            BodyOption::Position(_) => todo!(),
+            BodyOption::PositionImpulse(_) => todo!(),
+            BodyOption::PositionPrev(_) => todo!(),
+            BodyOption::Render(_) => todo!(),
+            BodyOption::Resitution(_) => todo!(),
+            BodyOption::ShapeType(_) => todo!(),
+            BodyOption::SleepThreshold(_) => todo!(),
+            BodyOption::Slop(_) => todo!(),
+            BodyOption::Speed(_) => todo!(),
+            BodyOption::TimeScale(_) => todo!(),
+            BodyOption::Torque(_) => todo!(),
+            BodyOption::TotalContracts(_) => todo!(),
+            BodyOption::Velocity(_) => todo!(),
+            BodyOption::Vertices(_) => todo!(),
+        }
+    }
 }
 
 //MARK: Tests
@@ -1190,6 +1234,19 @@ mod tests {
         body_from_content(content)
     }
     // endregion: Helpers
+
+    #[test]
+    fn set_one_should_be_able_mutate_one_value_based_on_provided_option() {
+        // Arrange
+        let mut body = test_body();
+        let option = BodyOption::Area(83.);
+
+        // Act
+        body.set_one(&option);
+
+        // Assert
+        assert_float(body.get_area(), 83.)
+    }
 
     #[test]
     fn update_velocities_should_be_able_update_all_velocities_and_speeds() {
