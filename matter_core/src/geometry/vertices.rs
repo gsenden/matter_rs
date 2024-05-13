@@ -132,7 +132,7 @@ impl Vertices {
 
         for (index, vertex) in self.value.iter().enumerate() {
             area += (self.value[index2].get_x() - vertex.get_x())
-                * (self.value[index2].get_y() + vertex.get_x());
+                * (self.value[index2].get_y() + vertex.get_y());
             index2 = index;
         }
 
@@ -185,9 +185,11 @@ impl Vertices {
         (mass / 6.0) * (numerator / denominator)
     }
 
-    pub fn translate(&mut self, point: &impl XY, scalar: Option<f64>) {
+    pub fn translate(&mut self, vector: &impl XY, scalar: Option<f64>) {
         let scalar = scalar.unwrap_or(1.);
-        let mut translate = Vector::new_from(point);
+
+        let mut translate = Vector::new_from(vector);
+
         translate.mult(scalar);
 
         for vertex in self.value.iter_mut() {

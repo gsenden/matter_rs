@@ -461,7 +461,7 @@ impl Body {
         self.set_vertices_prop(&vertices);
 
         if let Some(bounds) = &mut self.get_bounds() {
-            bounds.update(&self.get_vertices(), Some(&self.get_velocity()));
+            bounds.update(&self.get_vertices(), Some(&self.get_velocity_prop()));
             self.set_bounds(&bounds);
         }
     }
@@ -509,7 +509,7 @@ impl Body {
         delta.sub(&self.get_position());
 
         if update_velocity {
-            self.set_position_prev(&position);
+            self.set_position_prev(&self.get_position());
             self.set_velocity_prop(&delta);
             let mut speed = delta.clone();
             self.set_speed_prop(speed.magnitude());
@@ -525,7 +525,7 @@ impl Body {
         for part in self.get_parts().iter_mut() {
             let mut position = part.get_position();
             position.add_xy(&delta);
-            self.set_position_prop(&position);
+            part.set_position_prop(&position);
             let mut vertices = part.get_vertices();
             vertices.translate(&delta, None);
             part.set_vertices_prop(&vertices);
@@ -563,9 +563,12 @@ impl Body {
             }
             vertices.clockwise_sort();
             vertices.hull();
-            self.set_vertices(&vertices);
+            let hull = vertices.clone();
+            let hull_centre = hull.centre();
+
+            self.set_vertices(&hull);
             let mut vertices = self.get_vertices();
-            vertices.translate(&vertices.centre(), None);
+            vertices.translate(&hull_centre, None);
             self.set_vertices_prop(&vertices);
         }
 
@@ -597,6 +600,7 @@ impl Body {
                 );
                 self.set_position_prev(&position_prev);
             }
+            self.set_position_prop(centre);
         } else {
             if let Some(position_prev) = &mut self.get_position_prev() {
                 position_prev.add_xy(centre);
@@ -627,10 +631,10 @@ impl Body {
         }
 
         for part in &mut self.get_parts() {
-            part.set_angle_prop(self.get_angle() + delta);
+            part.set_angle_prop(part.get_angle() + delta);
             let mut vertices = part.get_vertices();
             vertices.rotate(delta, &self.get_position());
-            part.set_vertices(&vertices);
+            part.set_vertices_prop(&vertices);
 
             if let Some(axes) = &mut part.get_axes() {
                 axes.rotate(delta);
@@ -686,11 +690,11 @@ impl Body {
         let time_scale = self.get_delta_time().unwrap_or(common::BASE_DELTA) / common::BASE_DELTA;
         self.set_angle_prev(self.get_angle() - velocity * time_scale);
         self.set_angular_velocity_prop((self.get_angle() - self.get_angle_prev()) / time_scale);
-        self.set_angular_speed_prop(f64::abs(self.get_angular_velocity()));
+        self.set_angular_speed_prop(f64::abs(self.get_angular_velocity_prop()));
     }
 
     fn set_angular_speed_prop(&mut self, value: f64) {
-        content_mut!(self).speed = value;
+        content_mut!(self).angular_speed = value;
     }
 
     pub fn set_angular_speed(&mut self, speed: f64) {
@@ -932,7 +936,7 @@ impl Body {
 
             if let Some(bounds) = &mut part.get_bounds() {
                 // what happens if bounds == None -> no idea. Need futher testing. ... famous last words
-                bounds.update(&part.get_vertices(), Some(&self.get_velocity()));
+                bounds.update(&part.get_vertices(), Some(&self.get_velocity_prop()));
                 part.set_bounds(&bounds);
             }
         }
@@ -1005,12 +1009,12 @@ impl Body {
         // transform the body geometry
         for part in &mut self.get_parts() {
             let mut vertices = part.get_vertices();
-            vertices.translate(&self.get_velocity(), None);
+            vertices.translate(&self.get_velocity_prop(), None);
             part.set_vertices_prop(&vertices);
 
             if !self.is_part_parent(part) {
                 let mut position = part.get_position();
-                position.add_xy(&self.get_velocity());
+                position.add_xy(&self.get_velocity_prop());
                 part.set_position_prop(&position);
             }
 
@@ -1032,7 +1036,7 @@ impl Body {
             }
 
             if let Some(bounds) = &mut part.get_bounds() {
-                bounds.update(&part.get_vertices(), Some(&self.get_velocity()));
+                bounds.update(&part.get_vertices(), Some(&&self.get_velocity_prop()));
                 part.set_bounds(&bounds);
             }
         }
@@ -1981,10 +1985,14 @@ mod tests {
                 part_content.id = common::next_id();
                 part_content.angle += increase;
                 part_content.angle_prev += increase;
-                if let Some(axes) = &mut part_content.axes {
-                    axes[0].add_x_y(*increase, *increase);
-                    axes[1].add_x_y(-1. * increase, -1. * increase);
-                }
+
+                let mut axes = axes.clone();
+                axes[0].set_x(*increase + 1.);
+                axes[0].set_y(*increase + 1.);
+                axes[1].set_x(-1. * (*increase + 1.));
+                axes[1].set_y(-1. * (*increase + 1.));
+                part_content.axes = Some(Axes::new(&axes));
+
                 part_content.bounds = Some(test_bounds());
                 part_content.position = Position::new(*increase, *increase);
                 part_content.vertices = Vertices::new(test_square(), None);
@@ -2003,6 +2011,7 @@ mod tests {
         // Act
         body.set_angle(37., update_velocity);
 
+        // Assert
         let part = body.get_parts()[0].clone();
         assert_float(part.get_angle(), 37.);
         assert_float(part.get_angle_prev(), 36.);
@@ -2133,6 +2142,7 @@ mod tests {
         assert_xy(&body.get_position_prev().unwrap(), 41., 42.);
     }
 
+    //MARK: HERE
     #[test]
     fn set_parts_should_update_body_with_parts_with_setting_autohull_to_true() {
         // Arrange
