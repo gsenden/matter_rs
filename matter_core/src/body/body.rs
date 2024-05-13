@@ -1,6 +1,8 @@
 // MARK: Usings
 // region: Usings
-use super::{body_option::BodyOption, body_properties::BodyProperties};
+use super::{
+    body_option::BodyOption, body_orgiginal::BodyOriginal, body_properties::BodyProperties,
+};
 use crate::{
     core::{
         collision_filter::CollisionFilter,
@@ -87,7 +89,7 @@ pub struct BodyContent {
     total_contacts: u32,
     velocity: Velocity,
     vertices: Vec<Vertex>,
-    _original: Option<Box<Body>>,
+    _original: Option<BodyOriginal>,
 }
 
 // MARK: Default Body
@@ -395,6 +397,10 @@ impl Body {
         }
         parts
     }
+
+    fn get_original(&self) -> Option<BodyOriginal> {
+        content!(self)._original
+    }
     // endregion: Getters
 
     // MARK: Setters
@@ -412,6 +418,10 @@ impl Body {
     fn get_moment(&self) -> f64 {
         let content = content!(self);
         content.inertia / (content.mass / 6.)
+    }
+
+    fn set_mass_prop(&mut self, value: f64) {
+        content_mut!(self).mass = value;
     }
 
     pub fn set_mass(&mut self, mass: f64) {
@@ -488,6 +498,10 @@ impl Body {
         properties.set_centre(&centre);
 
         properties
+    }
+
+    fn set_position_prop(&mut self, value: &impl XY) {
+        content_mut!(self).position.set_xy(value);
     }
 
     pub fn set_position(&mut self, position: Position, update_velocity: Option<bool>) {
@@ -601,6 +615,10 @@ impl Body {
         }
     }
 
+    fn set_angle_prop(&mut self, angle: f64) {
+        content_mut!(self).angle = angle;
+    }
+
     pub fn set_angle(&mut self, angle: f64, update_velocity: Option<bool>) {
         let update_velocity = update_velocity.unwrap_or(false);
 
@@ -643,6 +661,10 @@ impl Body {
         }
     }
 
+    fn set_velocity_prop(&mut self, value: &Velocity) {
+        content_mut!(self).velocity = value.clone();
+    }
+
     pub fn set_velocity(&mut self, velocity: &Velocity) {
         let mut content = content_mut!(self);
         let time_scale = content.delta_time.unwrap_or(common::BASE_DELTA) / common::BASE_DELTA;
@@ -662,6 +684,10 @@ impl Body {
         content.speed = vector::magnitude(&content.velocity);
     }
 
+    fn set_speed_prop(&mut self, value: f64) {
+        content_mut!(self).speed = value;
+    }
+
     pub fn set_speed(&mut self, speed: f64) {
         let velocity = self.get_velocity();
         let normalised = vector::normalise(&velocity);
@@ -676,6 +702,10 @@ impl Body {
         content.angle_prev = content.angle - velocity * time_scale;
         content.angular_velocity = (content.angle - content.angle_prev) / time_scale;
         content.angular_speed = f64::abs(content.angular_velocity);
+    }
+
+    fn set_angular_speed_prop(&mut self, value: f64) {
+        content_mut!(self).speed = value;
     }
 
     pub fn set_angular_speed(&mut self, speed: f64) {
@@ -753,11 +783,6 @@ impl Body {
         content.is_sleeping = value;
     }
 
-    pub fn set_is_static(&mut self, value: bool) {
-        let mut content = content_mut!(self);
-        content.is_static = value;
-    }
-
     pub fn set_motion(&mut self, value: f64) {
         let mut content = content_mut!(self);
         content.motion = value;
@@ -808,6 +833,76 @@ impl Body {
         content.total_contacts = value;
     }
 
+    fn set_inertia_prop(&mut self, value: f64) {
+        content_mut!(self).inertia = value;
+    }
+
+    fn set_inverse_mass(&mut self, value: f64) {
+        content_mut!(self).inverse_mass = value;
+    }
+
+    fn set_inverse_inertia(&mut self, value: f64) {
+        content_mut!(self).inverse_inertia = value;
+    }
+
+    fn set_original(&mut self, value: Option<BodyOriginal>) {
+        content_mut!(self)._original = value;
+    }
+
+    fn set_position_prev(&mut self, value: &impl XY) {
+        if let Some(position_prev) = &mut content_mut!(self).position_prev {
+            position_prev.set_xy(value);
+        } else {
+            content_mut!(self).position_prev = Some(Position::new_from(value));
+        }
+    }
+
+    fn set_angle_prev(&mut self, value: f64) {
+        content_mut!(self).angle_prev = value;
+    }
+
+    fn set_angular_velocity_prop(&mut self, value: f64) {
+        content_mut!(self).angular_velocity = value;
+    }
+
+    fn set_from_body_original(&mut self, value: &BodyOriginal) {
+        self.set_density(value.get_density());
+        self.set_friction(value.get_friction());
+        self.set_inertia_prop(value.get_inertia());
+        self.set_inverse_inertia(value.get_inverse_inertia());
+        self.set_inverse_mass(value.get_inverse_mass());
+        self.set_mass_prop(value.get_mass());
+        self.set_resitution(value.get_resitution());
+    }
+
+    fn set_is_static(&mut self, value: bool) {
+        content_mut!(self).is_static = value;
+    }
+
+    pub fn set_static(&mut self, is_static: bool) {
+        for part in &mut self.get_parts() {
+            if is_static {
+                part.set_original(Some(BodyOriginal::from(&part)));
+                part.set_resitution(0.);
+                part.set_friction(1.);
+                part.set_mass_prop(f64::INFINITY);
+                part.set_inertia_prop(f64::INFINITY);
+                part.set_density(f64::INFINITY);
+                part.set_inverse_mass(0.);
+                part.set_inverse_inertia(0.);
+                part.set_position_prev(&part.get_position());
+                part.set_angle_prev(part.get_angle());
+                part.set_angular_velocity_prop(0.);
+                part.set_speed_prop(0.);
+                part.set_angular_speed_prop(0.);
+                part.set_motion(0.);
+            } else if let Some(original) = part.get_original() {
+                part.set_from_body_original(&original);
+                part.set_original(None);
+            }
+            part.set_is_static(is_static);
+        }
+    }
     // endregion: Setters
 
     // MARK: Actions
@@ -948,6 +1043,14 @@ impl Body {
         let velocity_y = (velocity_prev_y * friction_air)
             + (self.get_force().get_y() / self.get_mass()) * delta_time_squared;
 
+        // self.set_velocity_prop(&Velocity::new(velocity_x, velocity_y));
+        // self.set_position_prev(&self.get_position());
+        // self.set_position_prop(&vector::add(
+        //     &self.get_position(),
+        //     &self.get_velocity_prop(),
+        // ));
+        // self.set_delta_time(delta_time);
+
         let mut parent_velocity = Velocity::new(0., 0.);
         {
             let mut content = content_mut!(self);
@@ -963,6 +1066,7 @@ impl Body {
         let angular_velocity =
             ((self.get_angle() - self.get_angle_prev()) * friction_air * correction)
                 + (self.get_torque() / self.get_inertia()) * delta_time_squared;
+
         {
             let mut content = content_mut!(self);
             content.angular_velocity = angular_velocity;
@@ -1075,6 +1179,10 @@ mod tests {
         content.torque = 52.;
         content.inertia = 32.;
         content.angular_velocity = 12.;
+        content.resitution = 69.;
+        content.friction = 666.;
+        content.inverse_inertia = 16.;
+        content.inverse_mass = 17.;
 
         content.vertices = vec_vector_to_vec_vertex(test_square());
 
@@ -1099,6 +1207,10 @@ mod tests {
                 part_content.torque = 52.;
                 part_content.inertia = 32.;
                 part_content.angular_velocity = 12.;
+                part_content.resitution += increase;
+                part_content.friction += increase;
+                part_content.inverse_inertia += increase;
+                part_content.inverse_mass += increase;
 
                 part_content.position = Position::new(*increase, *increase);
                 part_content.vertices = vec_vector_to_vec_vertex(test_square())
@@ -1116,6 +1228,83 @@ mod tests {
         body_from_content(content)
     }
     // endregion: Helpers
+
+    #[test]
+    fn set_static_should_be_able_to_set_a_default_body_to_static() {
+        // Arrange
+        let mut body = test_body();
+        let is_static = true;
+
+        // Act
+        body.set_static(is_static);
+
+        // Assert
+        let part = body.get_parts()[0].clone();
+        let original = part.get_original().unwrap();
+        assert_float(part.get_resitution(), 0.);
+        assert_float(part.get_friction(), 1.);
+        assert_float(part.get_mass(), f64::INFINITY);
+        assert_float(part.get_inertia(), f64::INFINITY);
+        assert_float(part.get_density(), f64::INFINITY);
+        assert_float(part.get_inverse_mass(), 0.);
+        assert_xy(&part.get_position(), 2., 2.);
+        assert_float(part.get_angle_prev(), 42.);
+        assert_float(part.get_angular_velocity_prop(), 0.);
+        assert_float(part.get_speed_prop(), 0.);
+        assert_float(part.get_angular_speed_prop(), 0.);
+        assert_float(part.get_motion(), 0.);
+        assert_float(original.get_resitution(), 69.);
+        assert_float(original.get_friction(), 666.);
+        assert_float(original.get_mass(), 88.);
+        assert_float(original.get_inertia(), 32.);
+        assert_float(original.get_inverse_inertia(), 16.);
+        assert_float(original.get_inverse_mass(), 17.);
+        assert_float(original.get_density(), 1.1);
+
+        let part = body.get_parts()[1].clone();
+        let original = part.get_original().unwrap();
+        assert_float(part.get_resitution(), 0.);
+        assert_float(part.get_friction(), 1.);
+        assert_float(part.get_mass(), f64::INFINITY);
+        assert_float(part.get_inertia(), f64::INFINITY);
+        assert_float(part.get_density(), f64::INFINITY);
+        assert_float(part.get_inverse_mass(), 0.);
+        assert_xy(&part.get_position(), 1., 1.);
+        assert_float(part.get_angle_prev(), 43.);
+        assert_float(part.get_angular_velocity_prop(), 0.);
+        assert_float(part.get_speed_prop(), 0.);
+        assert_float(part.get_angular_speed_prop(), 0.);
+        assert_float(part.get_motion(), 0.);
+        assert_float(original.get_density(), 2.1);
+        assert_float(original.get_friction(), 667.);
+        assert_float(original.get_inertia(), 32.);
+        assert_float(original.get_inverse_inertia(), 17.);
+        assert_float(original.get_inverse_mass(), 18.);
+        assert_float(original.get_mass(), 88.);
+        assert_float(original.get_resitution(), 70.);
+
+        let part = body.get_parts()[2].clone();
+        let original = part.get_original().unwrap();
+        assert_float(part.get_resitution(), 0.);
+        assert_float(part.get_friction(), 1.);
+        assert_float(part.get_mass(), f64::INFINITY);
+        assert_float(part.get_inertia(), f64::INFINITY);
+        assert_float(part.get_density(), f64::INFINITY);
+        assert_float(part.get_inverse_mass(), 0.);
+        assert_xy(&part.get_position(), 2., 2.);
+        assert_float(part.get_angle_prev(), 44.);
+        assert_float(part.get_angular_velocity_prop(), 0.);
+        assert_float(part.get_speed_prop(), 0.);
+        assert_float(part.get_angular_speed_prop(), 0.);
+        assert_float(part.get_motion(), 0.);
+        assert_float(original.get_density(), 3.1);
+        assert_float(original.get_friction(), 668.);
+        assert_float(original.get_inertia(), 32.);
+        assert_float(original.get_inverse_inertia(), 18.);
+        assert_float(original.get_inverse_mass(), 19.);
+        assert_float(original.get_mass(), 88.);
+        assert_float(original.get_resitution(), 71.);
+    }
 
     #[test]
     fn apply_force_should_be_able_to_update_a_body() {

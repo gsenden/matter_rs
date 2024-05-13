@@ -1,5 +1,6 @@
 use float_cmp::ApproxEq;
 use std::cmp::Ordering;
+use std::rc::Weak;
 use std::vec;
 use uuid::Uuid;
 
@@ -8,88 +9,418 @@ use crate::core::xy::{XYNew, XY};
 
 use super::super::core::common;
 use super::vector::{self, Vector};
+use super::vertex::Vertex;
 use regex::Regex;
+use std::ops::{Index, IndexMut};
 
-#[derive(Clone)]
-pub struct Vertex {
-    body: Option<Body>,
-    x: f64,
-    y: f64,
-    index: usize,
-    is_internal: bool,
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum FromPathError {
+    RegexError(String),
+    ParseFloatError(String),
 }
 
-impl XY for Vertex {
-    fn get_x(&self) -> f64 {
-        self.x
-    }
+pub struct Vertices {
+    value: Vec<Vertex>,
+}
 
-    fn get_y(&self) -> f64 {
-        self.y
-    }
+impl Index<usize> for Vertices {
+    type Output = Vertex;
 
-    fn set_x(&mut self, x: f64) {
-        self.x = x;
-    }
-
-    fn set_y(&mut self, y: f64) {
-        self.y = y;
+    fn index<'a>(&'a self, index: usize) -> &'a Self::Output {
+        &self.value[index]
     }
 }
 
-impl Vertex {
-    pub fn from_vector(
-        body: Option<Body>,
-        vector: &Vector,
-        index: usize,
-        is_internal: bool,
-    ) -> Self {
-        Vertex::new(body, vector.get_x(), vector.get_y(), index, is_internal)
+impl IndexMut<usize> for Vertices {
+    fn index_mut<'a>(&'a mut self, index: usize) -> &'a mut Self::Output {
+        &mut self.value[index]
+    }
+}
+
+impl Vertices {
+    pub fn new(points: Vec<Vector>, body: Option<Body>) -> Self {
+        let mut vertices: Vec<Vertex> = Vec::new();
+
+        for (index, vector) in points.iter().enumerate() {
+            vertices.push(Vertex::from_vector(body.clone(), vector, index, false));
+        }
+        Vertices { value: vertices }
     }
 
-    pub fn new(body: Option<Body>, x: f64, y: f64, index: usize, is_internal: bool) -> Self {
-        Vertex {
-            body: body,
-            x: x,
-            y: y,
-            index: index,
-            is_internal: is_internal,
+    pub fn create(points: Vec<Vector>, body: Option<Body>) -> Self {
+        Vertices::new(points, body)
+    }
+
+    pub fn set_body(&mut self, body: &Body) {
+        for vertex in self.value.iter_mut() {
+            vertex.set_body(body.clone());
         }
     }
 
-    pub fn get_body(&self) -> Option<Body> {
-        self.body.clone()
+    pub fn from_path(path: &str, body: Option<Body>) -> Result<Vec<Vertex>, FromPathError> {
+        let regex = match Regex::new(r"([\d.e]+)[\s,]*([-\d.e]+)") {
+            Ok(reg) => reg,
+            Err(error) => {
+                let regex_error = format!(
+                    "Regex error while parsing {} to Vectores.\nError:{}",
+                    path, error
+                );
+                return Err(FromPathError::RegexError(regex_error));
+            }
+        };
+
+        let mut index = 0;
+        let vertices: Result<Vec<Vertex>, FromPathError> = regex
+            .captures_iter(path)
+            .map(|caps| {
+                let (_, [first_number, second_number]) = caps.extract();
+                let parse_error = format!("Float parsing error while parsing path {}", path);
+                let x = match first_number.parse::<f64>() {
+                    Ok(n) => n,
+                    Err(e) => {
+                        let parse_error = format!("{}\nError:{}", parse_error, e);
+                        return Err(FromPathError::ParseFloatError(parse_error));
+                    }
+                };
+                let y = match second_number.parse::<f64>() {
+                    Ok(n) => n,
+                    Err(e) => {
+                        let parse_error = format!("{}\nError:{}", parse_error, e);
+                        return Err(FromPathError::ParseFloatError(parse_error));
+                    }
+                };
+                index += 1;
+                Ok(Vertex::new(body.clone(), x, y, index - 1, false))
+            })
+            .collect();
+
+        match vertices {
+            Ok(points) => Ok(points),
+            Err(e) => Err(e),
+        }
     }
 
-    pub fn set_body(&mut self, body: Body) {
-        self.body = Some(body);
+    pub fn area(&self, signed: Option<bool>) -> f64 {
+        let signed = signed.unwrap_or(false);
+        let mut index2 = self.value.len() - 1;
+        let mut area = 0.0_f64;
+
+        for (index, vertex) in self.value.iter().enumerate() {
+            area += (self.value[index2].get_x() - vertex.get_x())
+                * (self.value[index2].get_y() + vertex.get_x());
+            index2 = index;
+        }
+
+        if signed {
+            area / 2.0
+        } else {
+            area.abs() / 2.0
+        }
     }
 
-    pub fn get_index(&self) -> usize {
-        self.index
+    pub fn centre(&self) -> impl XY {
+        let area = self.area(Some(true));
+        let mut centre = Vector::new(0., 0.);
+        for (index, vertex) in self.value.iter().enumerate() {
+            let index2 = (index + 1) % self.value.len();
+
+            let cross = Vector::cross(vertex, &self.value[index2]);
+            let mut temp = Vector::add(vertex, &self.value[index2]);
+            temp.mult(cross);
+
+            centre = Vector::add(&centre, &temp);
+        }
+        centre.div(6. * area);
+        centre
     }
 
-    pub fn get_is_internal(&self) -> bool {
-        self.is_internal
+    pub fn mean(&self) -> impl XY {
+        let mut average = self.value.iter().fold(Vector::new(0., 0.), |mut cur, acc| {
+            cur.set_x(cur.get_x() + acc.get_x());
+            cur.set_y(cur.get_y() + acc.get_y());
+            cur
+        });
+        let scalar = self.value.len() as f64;
+        average.div(scalar);
+        average
     }
 
-    pub fn set_is_interal(&mut self, is_internal: bool) {
-        self.is_internal = is_internal
+    pub fn innertia(&self, mass: f64) -> f64 {
+        let mut numerator: f64 = 0.;
+        let mut denominator: f64 = 0.;
+
+        for (index, vertex) in self.value.iter().enumerate() {
+            let index2 = (index + 1) % self.value.len();
+            let vertex2 = self.value[index2].clone();
+            let cross = f64::abs(Vector::cross(&vertex2, vertex));
+
+            numerator +=
+                cross * (vertex2.dot(&vertex2) + vertex2.dot(&vertex) + vertex.dot(&vertex));
+            denominator += cross;
+        }
+        (mass / 6.0) * (numerator / denominator)
+    }
+
+    pub fn translate(&mut self, point: &impl XY, scalar: Option<f64>) {
+        let scalar = scalar.unwrap_or(1.);
+        let mut translate = point.clone();
+        translate.mult(scalar);
+
+        for vertex in self.value.iter_mut() {
+            vertex.add_xy(&translate);
+        }
+    }
+
+    pub fn contains(&self, point: &impl XY) -> bool {
+        let mut previous_vector = &self.value[self.value.len() - 1];
+
+        for vertex in self.value.iter() {
+            if (point.get_x() - previous_vector.get_x())
+                * (vertex.get_y() - previous_vector.get_y())
+                + (point.get_y() - previous_vector.get_y())
+                    * (previous_vector.get_x() - vertex.get_x())
+                > 0.0
+            {
+                return false;
+            }
+            previous_vector = vertex
+        }
+        true
+    }
+
+    pub fn scale(&mut self, scale_x: f64, scale_y: f64, point: Option<&impl XY>) {
+        let point = point.unwrap_or(self.centre());
+
+        if scale_x == 1.0 && scale_y == 1.0 {
+            return;
+        }
+
+        for vertex in self.value.iter_mut() {
+            let mut delta = vertex.clone();
+            delta.sub(point);
+
+            vertex.set_x(point.get_x() + delta.get_x() * scale_x);
+            vertex.set_y(point.get_y() + delta.get_y() * scale_y);
+        }
+    }
+
+    pub fn chamfer(
+        &mut self,
+        radius: Option<Vec<f64>>,
+        quality: Option<f64>,
+        quality_min: Option<f64>,
+        quality_max: Option<f64>,
+    ) {
+        let default_quality = -1.0;
+        let radius = radius.unwrap_or(vec![8.0_f64]);
+        let quality = quality.unwrap_or(default_quality);
+        let quality_min = quality_min.unwrap_or(2.0_f64);
+        let quality_max = quality_max.unwrap_or(104.0_f64);
+
+        let mut new_vertices: Vec<Vertex> = Vec::new();
+        for (index, vertex) in self.value.iter_mut().enumerate() {
+            let prev_vertex = &self.value[if index > 0 {
+                index - 1
+            } else {
+                self.value.len() - 1
+            }];
+            let next_vertex = &self.value[(index + 1) % self.value.len()];
+            let current_radius = radius[if index < radius.len() {
+                index
+            } else {
+                radius.len() - 1
+            }];
+
+            if current_radius == 0.0 {
+                new_vertices.push(vertex.clone());
+                continue;
+            }
+
+            let mut prev_normal = Vector::new(
+                vertex.get_y() - prev_vertex.get_y(),
+                prev_vertex.get_x() - vertex.get_x(),
+            );
+            prev_normal.normalise();
+
+            let mut next_normal = Vector::new(
+                next_vertex.get_y() - vertex.get_y(),
+                vertex.get_x() - next_vertex.get_x(),
+            );
+            next_normal.normalise();
+
+            let diagonal_radius = f64::sqrt(2.0 * f64::powf(current_radius, 2.0));
+            let radius_vector = prev_normal.clone();
+            radius_vector.mult(current_radius);
+
+            let mut mid_normal = Vector::add(&prev_normal, &next_normal);
+            mid_normal.mult(0.5);
+            mid_normal.normalise();
+
+            let scaled_vertex = vertex.clone();
+            let mut mult = mid_normal.clone();
+            mult.mult(diagonal_radius);
+            scaled_vertex.sub(&mult);
+
+            let mut precision = quality;
+            if quality == default_quality {
+                precision = f64::powf(current_radius, 0.32) * 1.75;
+            }
+
+            precision = common::clamp(precision, quality_min, quality_max);
+            if precision % 2.0 == 1.0 {
+                precision += 1.0;
+            }
+
+            let alpha = prev_normal.clone();
+            let alpha = f64::acos(alpha.dot(&next_normal));
+            let theta = alpha / precision;
+
+            let mut index = 0_usize;
+            while (index as f64) < precision {
+                let mut rotated = radius_vector.clone();
+                rotated.rotate(theta * index as f64);
+                rotated.add_xy(&scaled_vertex);
+                new_vertices.push(Vertex::from_vector(
+                    vertex.get_body().clone(),
+                    &rotated,
+                    index,
+                    vertex.get_is_internal(),
+                ));
+                index += 1;
+            }
+        }
+        self.value = new_vertices;
+    }
+
+    pub fn clockwise_sort(&mut self) {
+        let centre = self.mean();
+
+        self.value.sort_by(|vector_a: &Vertex, vector_b: &Vertex| {
+            let angle_a = Vector::angle(&centre, vector_a);
+            let angle_b = Vector::angle(&centre, vector_b);
+
+            if angle_a.approx_eq(angle_b, (0.0, 2)) {
+                Ordering::Equal
+            } else if angle_a - angle_b < 0.0 {
+                Ordering::Less
+            } else {
+                Ordering::Greater
+            }
+        });
+    }
+
+    pub fn hull(&mut self) {
+        self.value.sort_by(|vector_a, vector_b| {
+            let delta_x = vector_a.get_x() - vector_b.get_x();
+            let compare_value = if delta_x.approx_eq(0.0, (0.0, 2)) {
+                vector_a.get_y() - vector_b.get_y()
+            } else {
+                delta_x
+            };
+
+            if compare_value < 0.0 {
+                Ordering::Less
+            } else {
+                Ordering::Greater
+            }
+        });
+
+        let mut lower: Vec<Vertex> = Vec::new();
+
+        let mut index = 0;
+        while index < self.value.len() {
+            let vertex = &self.value[index];
+
+            while lower.len() >= 2
+                && Vector::cross3(&lower[lower.len() - 2], &lower[lower.len() - 1], vertex) <= 0.0
+            {
+                lower.pop();
+            }
+            lower.push(vertex.clone());
+            index += 1;
+        }
+
+        let mut upper: Vec<Vertex> = Vec::new();
+        let mut index = (self.value.len() - 1) as i32;
+
+        while index >= 0 {
+            let vertex = &self.value[index as usize];
+
+            while upper.len() >= 2
+                && Vector::cross3(&upper[upper.len() - 2], &upper[upper.len() - 1], vertex) <= 0.0
+            {
+                upper.pop();
+            }
+            upper.push(vertex.clone());
+
+            index -= 1;
+        }
+        upper.pop();
+        lower.pop();
+
+        upper.append(&mut lower);
+        self.value = upper;
+    }
+
+    pub fn is_convex(&self) -> Option<bool> {
+        let vertices_len = self.value.len();
+
+        if vertices_len < 3 {
+            return None;
+        }
+
+        let mut flag = 0;
+        let mut index = 0_usize;
+        while index < vertices_len {
+            let j = (index + 1) % vertices_len;
+            let k = (index + 2) % vertices_len;
+            let mut z = (self.value[j].get_x() - self.value[index].get_x())
+                * (self.value[k].get_y() - self.value[j].get_y());
+            z -= (self.value[j].get_y() - self.value[index].get_y())
+                * (self.value[k].get_x() - self.value[j].get_x());
+            index += 1;
+
+            if z < 0.0 {
+                flag = flag | 1;
+            } else if z > 0.0 {
+                flag = flag | 2;
+            }
+
+            if flag == 3 {
+                return Some(false);
+            }
+        }
+
+        if flag != 0 {
+            Some(true)
+        } else {
+            None
+        }
+    }
+
+    pub fn rotate(&mut self, angle: f64, point: &impl XY) {
+        if angle == 0. {
+            return;
+        }
+
+        let cos = f64::cos(angle);
+        let sin = f64::sin(angle);
+
+        for vertex in self.value.iter_mut() {
+            let dx = vertex.get_x() - point.get_x();
+            let dy = vertex.get_y() - point.get_y();
+            vertex.set_x(point.get_x() + (dx * cos - dy * sin));
+            vertex.set_y(point.get_y() + (dx * sin + dy * cos));
+        }
     }
 }
-
+/*
 pub fn create(points: Vec<Vector>, body: Option<Body>) -> Vec<Vertex> {
     let mut vertices: Vec<Vertex> = Vec::new();
     for (index, vector) in points.iter().enumerate() {
         vertices.push(Vertex::from_vector(body.clone(), vector, index, false));
     }
     vertices
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum FromPathError {
-    RegexError(String),
-    ParseFloatError(String),
 }
 
 pub fn set_body(vertices: &mut Vec<Vertex>, body: &Body) {
@@ -441,6 +772,7 @@ pub fn rotate(vertices: &mut Vec<Vertex>, angle: f64, point: &impl XY) {
         vertex.y = point.get_y() + (dx * sin + dy * cos);
     }
 }
+*/
 
 #[cfg(test)]
 mod tests {
@@ -461,12 +793,14 @@ mod tests {
     #[test]
     fn rotate_should_rotate_the_vertices_in_place() {
         // Arrange
-        let mut vertices = vec_vector_to_vec_vertex(test_square());
+        let mut vertices = Vertices {
+            value: vec_vector_to_vec_vertex(test_square()),
+        };
         let angle = 37.;
         let point = vector::create(42., 42.);
 
         // Act
-        rotate(&mut vertices, angle, &point);
+        vertices.rotate(angle, &point);
 
         // Assert
         assert_xy(&vertices[0], -15.767039597396057, 37.0030873378779);
