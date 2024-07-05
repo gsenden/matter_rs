@@ -7,9 +7,9 @@ edition = "2021"
 
 [dependencies]
 float-cmp = "0.9.0"
-itertools = "0.12.1"
+itertools = "0.13.0"
 regex = "1.10.3"
-regress = "0.9.0" 
+regress = "0.10.0" 
 
 [dependencies.uuid]
 version = "1.8.0"
