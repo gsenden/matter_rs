@@ -19,7 +19,6 @@ use crate::{
         axes::{self, Axes},
         bounds::{self, Bounds},
         vector::{self, Vector},
-        vertex::Vertex,
         vertices::{self, Vertices},
     },
 };
@@ -1142,7 +1141,7 @@ mod tests {
             position::{self, Position},
             xy::XY,
         },
-        geometry::{bounds::BoundsPart, vertex},
+        geometry::{bounds::BoundsPart, vertex::{self, Vertex}},
         test_utils::{
             body_test_utils::{assert_position, assert_velocity},
             common_test_utils::assert_float,
