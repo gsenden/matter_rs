@@ -6,7 +6,7 @@ use super::{
 use crate::{
     core::{
         collision_filter::CollisionFilter,
-        common::{self, OrderedHashMap, ShapeType, BASE_DELTA},
+        common::{self, ShapeType, BASE_DELTA},
         constraint_impulse::ConstraintImpulse,
         force::Force,
         position::{self, Position},
