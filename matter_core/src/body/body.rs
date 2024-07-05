@@ -24,10 +24,7 @@ use crate::{
     },
 };
 use core::time;
-use std::{
-    cell::{RefCell, RefMut},
-    rc::{Rc, Weak},
-};
+use std::sync::{Arc, Mutex, Weak};
 use uuid::Uuid;
 // region: Usings
 
@@ -41,8 +38,8 @@ const TIME_CORRECTION: bool = true;
 // MARK: Structs
 #[derive(Clone)]
 pub struct Body {
-    content: Rc<RefCell<BodyContent>>,
-    parent: Weak<RefCell<BodyContent>>,
+    content: Arc<Mutex<BodyContent>>,
+    parent: Weak<Mutex<BodyContent>>,
 }
 
 #[derive(Clone)]
@@ -148,13 +145,15 @@ impl BodyContent {
 // region: Content Macro's
 macro_rules! content {
     ($a:expr) => {
-        $a.content.as_ref().borrow()
+        //$a.content.as_ref().borrow()
+        $a.content.lock().unwrap()
     };
 }
 
 macro_rules! content_mut {
     ($a:expr) => {
-        $a.content.as_ref().borrow_mut()
+        $a.content.lock().unwrap()
+        //$a.content.as_ref().borrow_mut()
     };
 }
 // endregion: Content Macro's
@@ -163,7 +162,7 @@ impl Body {
     pub fn default_body() -> Self {
         let content = BodyContent::default_contant();
         let mut body = Body {
-            content: Rc::new(RefCell::new(content)),
+            content: Arc::new(Mutex::new(content)),
             parent: Weak::new(),
         };
         content_mut!(body).vertices.set_body(&body);
@@ -416,7 +415,7 @@ impl Body {
     // MARK: Setters
     // region: Setters
     pub fn set_parent(&mut self, parent: &Body) {
-        self.parent = Rc::downgrade(&parent.content);
+        self.parent = Arc::downgrade(&parent.content);
     }
 
     fn set_inertia_prop(&mut self, value: f64) {
@@ -1157,7 +1156,7 @@ mod tests {
     // region: Helpers
     fn body_from_content(content: BodyContent) -> Body {
         Body {
-            content: Rc::new(RefCell::new(content)),
+            content: Arc::new(Mutex::new(content)),
             parent: Weak::new(),
         }
     }
