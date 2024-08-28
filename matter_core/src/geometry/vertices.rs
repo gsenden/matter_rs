@@ -221,16 +221,14 @@ impl Vertices {
             self.centre()
         };
 
-        if scale_x == 1.0 && scale_y == 1.0 {
-            return;
-        }
+        if !(scale_x == 1.0 && scale_y == 1.0) {
+            for vertex in self.value.iter_mut() {
+                let mut delta = vertex.clone();
+                delta.sub(&point);
 
-        for vertex in self.value.iter_mut() {
-            let mut delta = vertex.clone();
-            delta.sub(&point);
-
-            vertex.set_x(point.get_x() + delta.get_x() * scale_x);
-            vertex.set_y(point.get_y() + delta.get_y() * scale_y);
+                vertex.set_x(point.get_x() + delta.get_x() * scale_x);
+                vertex.set_y(point.get_y() + delta.get_y() * scale_y);
+            }
         }
     }
 
